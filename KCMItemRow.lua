@@ -1,0 +1,231 @@
+-- KCMItemRow.lua — Custom AceGUI widget for a single priority-list row.
+--
+-- Renders [owned icon] [item icon] [quality glyph?] [item name] [pick star] on
+-- a mouse-enabled frame, with GameTooltip:SetItemByID on hover. Used instead
+-- of a plain `type = "description"` so the row can:
+--   1. Show the real in-game item tooltip on hover.
+--   2. Surface the item's crafting-quality tier as a glyph (the same one
+--      Blizzard puts inline in consumable tooltips), when applicable.
+--   3. Surface a "currently picked" glyph without leaning on `<- pick` text.
+--
+-- AceConfig wires this up via `dialogControl = "KCMItemRow"` on a description
+-- entry. The row's data (itemID, owned?, isPick?) is passed via the entry's
+-- `arg` field, which AceConfigDialog forwards to `SetCustomData`. We ignore
+-- the stock `SetText` payload — the widget builds its own display string.
+
+local Type, Version = "KCMItemRow", 1
+local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
+if not AceGUI or (AceGUI:GetWidgetVersion(Type) or 0) >= Version then return end
+
+local pairs = pairs
+local CreateFrame, UIParent = CreateFrame, UIParent
+local GameTooltip = GameTooltip
+
+local OWNED_TEX     = "Interface\\RaidFrame\\ReadyCheck-Ready"
+local NOT_OWNED_TEX = "Interface\\RaidFrame\\ReadyCheck-NotReady"
+local PICK_TEX      = "Interface\\COMMON\\FavoritesIcon"
+local FALLBACK_ICON = 134400 -- INV_Misc_QuestionMark
+
+local ROW_HEIGHT    = 26
+local ICON_SIZE     = 22
+local ICON_GAP      = 4
+local QUALITY_GAP   = 1  -- tighter gap between quality glyph and name
+local PICK_SIZE     = 20
+local QUALITY_SIZE  = 18
+
+local function iconForItem(itemID)
+    if not itemID or not (C_Item and C_Item.GetItemInfoInstant) then
+        return FALLBACK_ICON
+    end
+    local _, _, _, _, tex = C_Item.GetItemInfoInstant(itemID)
+    return tex or FALLBACK_ICON
+end
+
+local function itemDisplayName(itemID)
+    if not itemID then return "?" end
+    if C_Item and C_Item.GetItemNameByID then
+        local n = C_Item.GetItemNameByID(itemID)
+        if n then return n end
+    end
+    if _G.GetItemInfo then
+        local n = _G.GetItemInfo(itemID)
+        if n then return n end
+    end
+    return "?"
+end
+
+-- Sets label width to the exact pixel gap between the left edge (item icon
+-- or quality glyph, if shown) and the pick star. Without this, a long name
+-- overflows its LEFT+RIGHT anchors and shoves the row's trailing widgets
+-- (and the buttons on the next Flow-layout cell) to the next line.
+local function applyLabelWidth(widget)
+    local frame = widget.frame
+    if not frame then return end
+    local w = frame.width or frame:GetWidth() or 0
+    if w <= 0 then return end
+    local leftOffset = 2 * 22 + 2 * 4 -- ownedTex + gap + itemTex + gap (literals so we don't depend on locals defined below)
+    if widget.qualityTex and widget.qualityTex:IsShown() then
+        leftOffset = leftOffset + 18 + 1 -- QUALITY_SIZE + QUALITY_GAP
+    end
+    local rightOffset = 20 + 4 -- PICK_SIZE + ICON_GAP
+    widget.label:SetWidth(math.max(20, w - leftOffset - rightOffset))
+end
+
+-- Returns the crafting-quality tier (1..5) for itemID, or nil if the item has
+-- no crafting quality. Tries both Crafted and Reagent variants — different
+-- consumable categories hang off different TradeSkill APIs.
+local function craftingQualityTier(itemID)
+    if not itemID or not _G.GetItemInfo then return nil end
+    local _, link = _G.GetItemInfo(itemID)
+    if not link then return nil end
+    if C_TradeSkillUI and C_TradeSkillUI.GetItemCraftedQualityByItemInfo then
+        local t = C_TradeSkillUI.GetItemCraftedQualityByItemInfo(link)
+        if t and t > 0 then return t end
+    end
+    if C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityByItemInfo then
+        local t = C_TradeSkillUI.GetItemReagentQualityByItemInfo(link)
+        if t and t > 0 then return t end
+    end
+    return nil
+end
+
+local methods = {
+    ["OnAcquire"] = function(self)
+        self.itemID = nil
+        self.owned  = false
+        self.isPick = false
+        self.frame.height = ROW_HEIGHT
+        self:SetHeight(ROW_HEIGHT)
+        self:SetWidth(300)
+        self:RefreshDisplay()
+    end,
+
+    -- AceConfigDialog calls SetText(name) and SetFontObject(font) for every
+    -- `type = "description"` entry (AceConfigDialog-3.0.lua:1402,1406-1410).
+    -- We ignore both — the widget builds its own label from itemID and uses a
+    -- fixed font. Without these stubs AceConfigDialog errors with
+    -- "attempt to call a nil value" the moment the panel renders.
+    ["SetText"]       = function(self, _) end,
+    ["SetFontObject"] = function(self, _) end,
+
+    -- Receives the option table's `arg` field. Expected shape:
+    --   { itemID = <number>, owned = <bool>, isPick = <bool> }
+    ["SetCustomData"] = function(self, data)
+        if type(data) ~= "table" then return end
+        self.itemID = data.itemID
+        self.owned  = data.owned  and true or false
+        self.isPick = data.isPick and true or false
+        self:RefreshDisplay()
+    end,
+
+    ["RefreshDisplay"] = function(self)
+        self.ownedTex:SetTexture(self.owned and OWNED_TEX or NOT_OWNED_TEX)
+        self.itemTex:SetTexture(iconForItem(self.itemID))
+        if self.isPick then self.pickTex:Show() else self.pickTex:Hide() end
+
+        local tier = craftingQualityTier(self.itemID)
+        self.label:ClearAllPoints()
+        -- LEFT anchor only — width is enforced by applyLabelWidth's SetWidth.
+        -- Setting both LEFT and RIGHT alongside SetWidth made truncation
+        -- unreliable on some layout passes.
+        if tier then
+            -- Professions-Icon-Quality-Tier<N>-Inv is the inventory-style
+            -- tier glyph (same one Blizzard overlays on bag slots for
+            -- crafted items). Atlas covers tiers 1..5.
+            self.qualityTex:SetAtlas("Professions-Icon-Quality-Tier" .. tier .. "-Inv")
+            self.qualityTex:Show()
+            self.label:SetPoint("LEFT", self.qualityTex, "RIGHT", QUALITY_GAP, 0)
+        else
+            self.qualityTex:Hide()
+            self.label:SetPoint("LEFT", self.itemTex, "RIGHT", ICON_GAP, 0)
+        end
+
+        local name = itemDisplayName(self.itemID)
+        local count = (self.itemID and _G.GetItemCount) and _G.GetItemCount(self.itemID) or 0
+        if count and count > 0 then
+            self.label:SetText(("[%d] %s"):format(count, name))
+        else
+            self.label:SetText(name)
+        end
+        applyLabelWidth(self)
+    end,
+
+    ["OnWidthSet"] = function(self, width)
+        self.frame.width = width
+        applyLabelWidth(self)
+    end,
+}
+
+local function Constructor()
+    local frame = CreateFrame("Frame", nil, UIParent)
+    frame:Hide()
+    frame:EnableMouse(true)
+    frame:SetHeight(ROW_HEIGHT)
+
+    local ownedTex = frame:CreateTexture(nil, "ARTWORK")
+    ownedTex:SetSize(ICON_SIZE, ICON_SIZE)
+    ownedTex:SetPoint("LEFT", 0, 0)
+
+    local itemTex = frame:CreateTexture(nil, "ARTWORK")
+    itemTex:SetSize(ICON_SIZE, ICON_SIZE)
+    itemTex:SetPoint("LEFT", ownedTex, "RIGHT", ICON_GAP, 0)
+
+    -- Crafting-quality tier glyph. Pinned to the item icon; the label anchors
+    -- past this texture only when it's visible (see RefreshDisplay).
+    local qualityTex = frame:CreateTexture(nil, "ARTWORK")
+    qualityTex:SetSize(QUALITY_SIZE, QUALITY_SIZE)
+    qualityTex:SetPoint("LEFT", itemTex, "RIGHT", ICON_GAP, 0)
+    qualityTex:Hide()
+
+    local pickTex = frame:CreateTexture(nil, "ARTWORK")
+    pickTex:SetTexture(PICK_TEX)
+    pickTex:SetSize(PICK_SIZE, PICK_SIZE)
+    pickTex:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
+    pickTex:Hide()
+
+    local label = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    label:SetJustifyH("LEFT")
+    label:SetJustifyV("MIDDLE")
+    label:SetHeight(ROW_HEIGHT)
+    -- Truncate long names instead of wrapping — a wrapped row would blow out
+    -- the row height and break Flow layout alignment with the buttons.
+    -- LEFT+RIGHT SetPoints alone weren't reliably bounding the label's
+    -- natural width, so we ALSO set an explicit SetWidth in applyLabelWidth
+    -- and use SetMaxLines(1) as a hard cap.
+    label:SetWordWrap(false)
+    label:SetNonSpaceWrap(false)
+    if label.SetMaxLines then label:SetMaxLines(1) end
+    -- Anchors are set each RefreshDisplay based on qualityTex visibility.
+
+    local widget = {
+        frame      = frame,
+        ownedTex   = ownedTex,
+        itemTex    = itemTex,
+        qualityTex = qualityTex,
+        pickTex    = pickTex,
+        label      = label,
+        type       = Type,
+    }
+
+    -- Direct frame script — we intentionally do NOT fire the AceGUI "OnEnter"
+    -- callback, because AceConfigDialog registers an OnEnter that shows the
+    -- option's `desc` tooltip. Hijacking the native script shows the real
+    -- item tooltip instead.
+    frame:SetScript("OnEnter", function(self)
+        if not widget.itemID then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetItemByID(widget.itemID)
+        GameTooltip:Show()
+    end)
+    frame:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+
+    for method, func in pairs(methods) do
+        widget[method] = func
+    end
+
+    return AceGUI:RegisterAsWidget(widget)
+end
+
+AceGUI:RegisterWidgetType(Type, Constructor, Version)

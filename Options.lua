@@ -29,23 +29,6 @@ local REGISTRY_KEY = "ConsumableMaster"
 -- Shared helpers
 -- ---------------------------------------------------------------------------
 
-local function iconMarkup(itemID)
-    if not (C_Item and C_Item.GetItemInfoInstant) then return "" end
-    local _, _, _, _, icon = C_Item.GetItemInfoInstant(itemID)
-    if icon then return ("|T%s:16:16:0:0|t "):format(icon) end
-    return ""
-end
-
-local function itemName(itemID)
-    local tt = KCM.TooltipCache and KCM.TooltipCache.Get and KCM.TooltipCache.Get(itemID)
-    if tt and tt.itemName then return tt.itemName end
-    if C_Item and C_Item.GetItemNameByID then
-        local n = C_Item.GetItemNameByID(itemID)
-        if n then return n end
-    end
-    return "?"
-end
-
 -- Every panel mutation funnels through here: request a pipeline recompute so
 -- the macro bodies catch up, then redraw the panel so the new state shows
 -- immediately.
@@ -254,12 +237,12 @@ end
 -- .MoveDown / .GetBucket. Every mutation calls afterMutation so the macro
 -- pipeline and panel stay in sync.
 
-local function formatRow(itemID, pickID, owned)
-    local ownedTag = owned and "|cff44ff44[owned]|r" or "|cff888888[ ---  ]|r"
-    local pickTag  = (pickID and itemID == pickID) and "  |cffffd100<- pick|r" or ""
-    return ("%s %s%s  |cff888888id=%d|r%s"):format(
-        ownedTag, iconMarkup(itemID), itemName(itemID), itemID, pickTag)
-end
+-- Shared status glyphs for the listLegend description (KCMItemRow handles its
+-- own status rendering directly from textures, so these only feed the legend
+-- inline markup).
+local OWNED_ICON     = "|TInterface\\RaidFrame\\ReadyCheck-Ready:20|t"
+local NOT_OWNED_ICON = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:20|t"
+local PICK_ICON      = "|TInterface\\COMMON\\FavoritesIcon:20|t"
 
 local function buildStatPriorityArgs(specKey)
     local args = {}
@@ -340,12 +323,17 @@ local function buildCategoryArgs(catKey)
     args.descHeader = {
         type  = "description",
         order = 1,
-        name  = cat.specAware
-            and ("|cffffd100%s|r — spec-aware. Viewing: %s.")
-                :format(cat.displayName, tostring(specKey or "(no active spec)"))
-            or ("|cffffd100%s|r"):format(cat.displayName),
-        fontSize = "medium",
+        name  = cat.displayName,
+        dialogControl = "KCMTitle",
     }
+    if cat.specAware then
+        args.descSubheader = {
+            type  = "description",
+            order = 2,
+            name  = ("Spec-aware. Viewing: %s."):format(tostring(specKey or "(no active spec)")),
+            fontSize = "medium",
+        }
+    end
 
     -- Spec selector (spec-aware categories only) ----------------
     if cat.specAware then
@@ -369,7 +357,12 @@ local function buildCategoryArgs(catKey)
     end
 
     -- Add-by-id --------------------------------------------------
-    args.addHeader = { type = "header", order = 10, name = "Add item by ID" }
+    args.addHeader = {
+        type = "header",
+        order = 10,
+        name = "Add item by ID",
+        dialogControl = "KCMHeading",
+    }
     args.addInput  = {
         type  = "input",
         order = 11,
@@ -403,12 +396,29 @@ local function buildCategoryArgs(catKey)
     }
 
     -- Priority list ----------------------------------------------
-    args.listHeader = { type = "header", order = 20, name = "Priority list" }
+    args.listHeader = {
+        type = "header",
+        order = 20,
+        name = "Priority list",
+        dialogControl = "KCMHeading",
+    }
+    args.listLegend = {
+        type  = "description",
+        order = 21,
+        name  = ("%s in bags    %s not in bags    %s picked in macro"):format(OWNED_ICON, NOT_OWNED_ICON, PICK_ICON),
+        fontSize = "medium",
+    }
+    args.listLegendSpacer = {
+        type  = "description",
+        order = 22,
+        name  = " ",
+        fontSize = "medium",
+    }
 
     if cat.specAware and not specKey then
         args.listEmpty = {
             type  = "description",
-            order = 21,
+            order = 23,
             name  = "|cffff8800No active spec.|r Spec-aware categories need a "
                  .. "resolvable spec to display a priority list.",
             fontSize = "medium",
@@ -423,7 +433,7 @@ local function buildCategoryArgs(catKey)
         if #priority == 0 then
             args.listEmpty = {
                 type  = "description",
-                order = 21,
+                order = 23,
                 name  = "|cffff8800(empty)|r — no candidates yet. Add an "
                      .. "itemID above or pick up a matching item to trigger "
                      .. "auto-discovery.",
@@ -440,16 +450,27 @@ local function buildCategoryArgs(catKey)
                 args["row" .. i .. "_label"] = {
                     type  = "description",
                     order = base + 0,
-                    name  = formatRow(rowID, pick, owned),
-                    width = 1.5,
-                    fontSize = "medium",
+                    name  = "",
+                    dialogControl = "KCMItemRow",
+                    descStyle = "hide",
+                    arg   = {
+                        itemID = rowID,
+                        owned  = owned,
+                        isPick = (pick and rowID == pick) and true or false,
+                    },
+                    width = 1.75,
                 }
                 args["row" .. i .. "_up"] = {
                     type  = "execute",
                     order = base + 1,
-                    name  = "up",
+                    name  = "",
                     desc  = "Move higher in priority",
-                    width = 0.15,
+                    descStyle = "hide",
+                    image = "Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up",
+                    imageWidth  = 24,
+                    imageHeight = 24,
+                    dialogControl = "KCMIconButton",
+                    width = 0.155,
                     disabled = isFirst,
                     func  = function()
                         if KCM.Selector and KCM.Selector.MoveUp
@@ -461,9 +482,14 @@ local function buildCategoryArgs(catKey)
                 args["row" .. i .. "_down"] = {
                     type  = "execute",
                     order = base + 2,
-                    name  = "dn",
+                    name  = "",
                     desc  = "Move lower in priority",
-                    width = 0.15,
+                    descStyle = "hide",
+                    image = "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up",
+                    imageWidth  = 24,
+                    imageHeight = 24,
+                    dialogControl = "KCMIconButton",
+                    width = 0.155,
                     disabled = isLast,
                     func  = function()
                         if KCM.Selector and KCM.Selector.MoveDown
@@ -475,10 +501,15 @@ local function buildCategoryArgs(catKey)
                 args["row" .. i .. "_x"] = {
                     type  = "execute",
                     order = base + 3,
-                    name  = "X",
+                    name  = "",
                     desc  = "Remove from this category. Blocks the item so "
                          .. "auto-discovery won't re-add it.",
-                    width = 0.2,
+                    descStyle = "hide",
+                    image = "Interface\\RaidFrame\\ReadyCheck-NotReady",
+                    imageWidth  = 24,
+                    imageHeight = 24,
+                    dialogControl = "KCMIconButton",
+                    width = 0.155,
                     func  = function()
                         if KCM.Selector and KCM.Selector.Block
                             and KCM.Selector.Block(catKey, rowID, specKey) then
@@ -491,7 +522,6 @@ local function buildCategoryArgs(catKey)
     end
 
     -- Per-category reset -----------------------------------------
-    args.resetSpacer = { type = "description", order = 200, name = " " }
     args.resetDivider = { type = "header", order = 201, name = "" }
     args.reset = {
         type        = "execute",
