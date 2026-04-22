@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -L \"https://www.curseforge.com/wow/addons/consumablemacro\")",
+      "Bash(curl -s -L \"https://warcraft.wiki.gg/wiki/API_CreateMacro\")",
+      "Bash(curl -s -L \"https://warcraft.wiki.gg/wiki/API_EditMacro\")",
+      "WebFetch(domain:www.curseforge.com)",
+      "WebFetch(domain:warcraft.wiki.gg)",
+      "WebSearch",
+      "WebFetch(domain:www.method.gg)",
+      "WebFetch(domain:www.wowace.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.noxxic.com)",
+      "WebFetch(domain:www.wowhead.com)",
+      "WebFetch(domain:www.icy-veins.com)",
+      "WebFetch(domain:www.archon.gg)",
+      "Bash(luac -p /home/tushar/GIT/ConsumableMaster/SlashCommands.lua)",
+      "Bash(lua -e 'local f=io.open\\(\"/home/tushar/GIT/ConsumableMaster/Options.lua\"\\); local src=f:read\\(\"*a\"\\); f:close\\(\\); local chunk,err=loadstring\\(src\\); if err then print\\(\"SYNTAX ERROR:\",err\\) else print\\(\"syntax ok\"\\) end')"
+    ]
+  }
+}

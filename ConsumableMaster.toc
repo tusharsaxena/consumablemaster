@@ -1,0 +1,38 @@
+## Interface: 120000
+## Title: Ka0s Consumable Master
+## Notes: Auto-managed account-wide consumable macros for WoW Midnight.
+## Author: Ka0s
+## Version: 0.1.0
+## SavedVariables: ConsumableMasterDB
+## IconTexture: Interface\Icons\INV_Misc_QuestionMark
+
+embeds.xml
+
+# Core.lua first: it creates the `KCM` addon object (via AceAddon:NewAddon)
+# and publishes it on `_G.KCM`. Every other file assumes `_G.KCM` exists at
+# load time. Pipeline + event handlers are defined at the top level here but
+# only *referenced* from events/OnEnable, which run after every file below
+# has loaded — so no file-order constraint on the bodies.
+Core.lua
+Debug.lua
+
+defaults\Categories.lua
+defaults\Defaults_StatPriority.lua
+defaults\Defaults_Food.lua
+defaults\Defaults_Drink.lua
+defaults\Defaults_StatFood.lua
+defaults\Defaults_HPPot.lua
+defaults\Defaults_MPPot.lua
+defaults\Defaults_Healthstone.lua
+defaults\Defaults_CombatPot.lua
+defaults\Defaults_Flask.lua
+
+SpecHelper.lua
+TooltipCache.lua
+BagScanner.lua
+Classifier.lua
+Ranker.lua
+Selector.lua
+MacroManager.lua
+Options.lua
+SlashCommands.lua
