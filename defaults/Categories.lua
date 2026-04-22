@@ -16,7 +16,7 @@ KCM.Categories.LIST = {
     {
         key         = "FOOD",
         macroName   = "KCM_FOOD",
-        displayName = "Food (Well Fed)",
+        displayName = "Food",
         specAware   = false,
         rankerKey   = "FOOD_BASIC",
         classifier  = "FOOD_BASIC",
@@ -25,7 +25,7 @@ KCM.Categories.LIST = {
     {
         key         = "DRINK",
         macroName   = "KCM_DRINK",
-        displayName = "Drink (Mana Recovery)",
+        displayName = "Drink",
         specAware   = false,
         rankerKey   = "DRINK",
         classifier  = "DRINK",
@@ -34,7 +34,7 @@ KCM.Categories.LIST = {
     {
         key         = "STAT_FOOD",
         macroName   = "KCM_STAT_FOOD",
-        displayName = "Stat Food (Spec-aware)",
+        displayName = "Stat Food",
         specAware   = true,
         rankerKey   = "STAT_FOOD",
         classifier  = "STAT_FOOD",
@@ -70,7 +70,7 @@ KCM.Categories.LIST = {
     {
         key         = "CMBT_POT",
         macroName   = "KCM_CMBT_POT",
-        displayName = "Combat Potion (Spec-aware)",
+        displayName = "Combat Potion",
         specAware   = true,
         rankerKey   = "CMBT_POT",
         classifier  = "CMBT_POT",
@@ -79,7 +79,7 @@ KCM.Categories.LIST = {
     {
         key         = "FLASK",
         macroName   = "KCM_FLASK",
-        displayName = "Flask (Spec-aware)",
+        displayName = "Flask",
         specAware   = true,
         rankerKey   = "FLASK",
         classifier  = "FLASK",
