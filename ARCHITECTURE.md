@@ -1,6 +1,6 @@
 # Architecture — short form
 
-This is the orient-yourself map. For the full design (DB schema, tooltip parsing rules, taint analysis, milestone decisions) read [TECHNICAL_DESIGN.md](./TECHNICAL_DESIGN.md).
+This is the orient-yourself map. For the full design (DB schema, tooltip parsing rules, taint analysis, milestone decisions) read [docs/TECHNICAL_DESIGN.md](./docs/TECHNICAL_DESIGN.md).
 
 ---
 

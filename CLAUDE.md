@@ -8,7 +8,7 @@ Guidance for Claude Code (and other LLM-assisted editors) working on **Ka0s Cons
 
 Eight account-wide global macros whose bodies auto-rewrite to the best consumable in bags for each category (food, drink, stat food, HP pot, MP pot, healthstone, combat pot, flask). Retail Midnight only (Interface 120000). English only. Ace3 throughout.
 
-Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the module map and pipeline; [TECHNICAL_DESIGN.md](./TECHNICAL_DESIGN.md) for deep design; [REQUIREMENTS.md](./REQUIREMENTS.md) for scope boundaries; [EXECUTION_PLAN.md](./EXECUTION_PLAN.md) for milestone history.
+Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the module map and pipeline; [docs/TECHNICAL_DESIGN.md](./docs/TECHNICAL_DESIGN.md) for deep design; [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md) for scope boundaries; [docs/EXECUTION_PLAN.md](./docs/EXECUTION_PLAN.md) for milestone history.
 
 ---
 
@@ -20,7 +20,7 @@ Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the module map and pipeline; [TECH
 
 **English-only.** Classifier compares subType against literal strings; TooltipCache patterns are English. If a Blizzard patch renames a subtype or rewords a tooltip line, edit `ST_*` in `Classifier.lua` or the `PATTERNS` table in `TooltipCache.lua`. Do not introduce localization plumbing — it is explicitly out of scope.
 
-**Seed data is data.** `defaults/Defaults_*.lua` files are just lists of itemIDs that become `KCM.SEED.<CATKEY>`. Updating a seed list is a zero-migration upgrade because the runtime candidate set is `seed ∪ added ∪ discovered − blocked` and the right-side sets live in SavedVariables. See [defaults/README.md](../defaults/README.md) and [REFRESH_ITEMS.md](./REFRESH_ITEMS.md).
+**Seed data is data.** `defaults/Defaults_*.lua` files are just lists of itemIDs that become `KCM.SEED.<CATKEY>`. Updating a seed list is a zero-migration upgrade because the runtime candidate set is `seed ∪ added ∪ discovered − blocked` and the right-side sets live in SavedVariables. See [defaults/README.md](./defaults/README.md) and [docs/REFRESH_ITEMS.md](./docs/REFRESH_ITEMS.md).
 
 **Reset is centralized.** `KCM.ResetAllToDefaults(reason)` in `Core.lua` wipes + resyncs. Both the Options panel "Reset all priorities" button and `/kcm reset`'s StaticPopup delegate to it. Don't add a third reset path.
 
@@ -110,7 +110,7 @@ If you can only reason about the change from code and cannot test it in WoW, say
 
 ### Refresh seed item IDs after a patch
 
-Follow [REFRESH_ITEMS.md](./REFRESH_ITEMS.md). Updating a `defaults/Defaults_*.lua` is safe — user SavedVariables are preserved.
+Follow [docs/REFRESH_ITEMS.md](./docs/REFRESH_ITEMS.md). Updating a `defaults/Defaults_*.lua` is safe — user SavedVariables are preserved.
 
 ### Fix a misclassification
 

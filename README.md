@@ -30,17 +30,11 @@ Macro writes that would land during combat are queued and flushed on `PLAYER_REG
 
 ---
 
-## Install
+## Usage
 
-1. Copy the `ConsumableMaster` folder into `World of Warcraft/_retail_/Interface/AddOns/`.
+1. Install the addon using the Addon Manager of choice, or manually
 2. Launch the game. The addon initializes on login — first `PLAYER_ENTERING_WORLD` scans bags, discovers known items, and writes all eight macros.
 3. Drag the new `KCM_*` macros onto your action bars from the macro UI.
-
-Ace3 libraries are vendored under `libs/` — no external dependencies.
-
----
-
-## Usage
 
 | Command              | What it does                                                           |
 |----------------------|------------------------------------------------------------------------|
@@ -62,13 +56,11 @@ The settings panel (also reachable via Escape → Options → AddOns → Ka0s Co
 
 ## Docs
 
-Deeper reference lives in `docs/`:
-
-- [REQUIREMENTS.md](docs/REQUIREMENTS.md) — what the addon does, category scope, constraints.
-- [TECHNICAL_DESIGN.md](docs/TECHNICAL_DESIGN.md) — full internal design (module contracts, DB schema, events, tooltip parsing).
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — short-form architecture map for orientation.
-- [EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) — milestone plan / history.
-- [RESEARCH.md](docs/RESEARCH.md) — notes on Blizzard APIs, Ace3 patterns, Midnight changes.
-- [REFRESH_ITEMS.md](docs/REFRESH_ITEMS.md) — procedure for refreshing seed item lists each patch.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — short-form architecture map for orientation.
+- [CLAUDE.md](CLAUDE.md) — guidance for Claude Code / LLM-assisted sessions.
+- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) — what the addon does, category scope, constraints.
+- [docs/TECHNICAL_DESIGN.md](docs/TECHNICAL_DESIGN.md) — full internal design (module contracts, DB schema, events, tooltip parsing).
+- [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) — milestone plan / history.
+- [docs/RESEARCH.md](docs/RESEARCH.md) — notes on Blizzard APIs, Ace3 patterns, Midnight changes.
+- [docs/REFRESH_ITEMS.md](docs/REFRESH_ITEMS.md) — procedure for refreshing seed item lists each patch.
 - [defaults/README.md](defaults/README.md) — seed data layout and source citations.
-- [CLAUDE.md](docs/CLAUDE.md) — guidance for Claude Code / LLM-assisted sessions.
