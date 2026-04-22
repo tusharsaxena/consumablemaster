@@ -9,7 +9,14 @@ local PREFIX = "|cffff8800[KCM]|r "
 -- taint cascade that affects popup slots 1/2 when other addons have used
 -- them earlier in the session (a well-known Ace3 footgun around any
 -- StaticPopup that mutates SavedVariables).
-StaticPopupDialogs = StaticPopupDialogs or {}
+--
+-- Do NOT write `StaticPopupDialogs = StaticPopupDialogs or {}` here —
+-- reassigning a Blizzard-managed global from insecure load-time code taints
+-- it, and ToggleGameMenu's first-show path reads StaticPopupDialogs, which
+-- propagates the taint to protected calls like ClearTarget() and throws
+-- ADDON_ACTION_FORBIDDEN on the first ESC after /reload. Blizzard always
+-- pre-defines StaticPopupDialogs before addons load, so the guard is
+-- unnecessary. Just write the subkey.
 StaticPopupDialogs["KCM_CONFIRM_RESET"] = {
     text = "Reset ALL ConsumableMaster customization to defaults?\n\n"
         .. "Wipes every category's added/blocked/pinned items and all "
