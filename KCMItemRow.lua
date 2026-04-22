@@ -42,7 +42,7 @@ local function iconForItem(itemID)
 end
 
 local function itemDisplayName(itemID)
-    if not itemID then return "?" end
+    if not itemID then return "[Loading]" end
     if C_Item and C_Item.GetItemNameByID then
         local n = C_Item.GetItemNameByID(itemID)
         if n then return n end
@@ -51,7 +51,7 @@ local function itemDisplayName(itemID)
         local n = _G.GetItemInfo(itemID)
         if n then return n end
     end
-    return "?"
+    return "[Loading]"
 end
 
 -- Sets label width to the exact pixel gap between the left edge (item icon

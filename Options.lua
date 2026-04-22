@@ -615,11 +615,50 @@ end
 -- the panel isn't open.
 
 function O.Refresh()
+    -- A direct refresh satisfies any pending debounced refresh — clear the
+    -- flag so the scheduled timer (if any) becomes a no-op when it fires.
+    O._refreshPending = false
     O._cache = nil
     local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
     if reg and reg.NotifyChange then
         reg:NotifyChange(REGISTRY_KEY)
     end
+end
+
+-- Trailing-edge debounced refresh. Used by Pipeline.Recompute so a burst of
+-- GET_ITEM_INFO_RECEIVED events (dozens during first panel open while item
+-- data streams in from the server) collapses into ONE rebuild after the
+-- storm ends. Each new call resets the timer — the refresh only fires once
+-- the caller has been quiet for REFRESH_DEBOUNCE_SEC. A max-wait cap
+-- guarantees the user sees updated data even if events never fully stop.
+--
+-- Panel rebuilds destroy every widget — which resets hover tooltips, scroll
+-- position, and can swallow mid-rebuild clicks — so this MUST not fire
+-- during a burst. User-driven mutations (add/remove/move buttons) still
+-- call O.Refresh directly via afterMutation for snappy click response.
+local REFRESH_DEBOUNCE_SEC = 1.0
+local REFRESH_MAX_WAIT_SEC = 3.0
+function O.RequestRefresh()
+    local now = GetTime()
+    if not O._refreshFirstAt then O._refreshFirstAt = now end
+    O._refreshPending = true
+    -- Invalidate any previously-scheduled fire via a token check.
+    O._refreshToken = (O._refreshToken or 0) + 1
+    local myToken = O._refreshToken
+
+    local waited = now - O._refreshFirstAt
+    local delay = REFRESH_DEBOUNCE_SEC
+    if waited + delay > REFRESH_MAX_WAIT_SEC then
+        delay = math.max(0.05, REFRESH_MAX_WAIT_SEC - waited)
+    end
+
+    C_Timer.After(delay, function()
+        if O._refreshToken ~= myToken then return end
+        if O._refreshPending then
+            O._refreshFirstAt = nil
+            O.Refresh()
+        end
+    end)
 end
 
 function O.Register()

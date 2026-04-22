@@ -73,12 +73,15 @@ function P.Recompute(reason)
     for _, cat in ipairs(KCM.Categories.LIST) do
         P.RecomputeOne(cat.key, reason)
     end
-    -- Panel is open only sometimes; Refresh is a NotifyChange passthrough
-    -- which is cheap when nobody is listening. Firing here covers every
-    -- event-driven state change (bag update, spec change, item-info
-    -- received, auto-discovery adding an item) without the event
-    -- handlers needing to know about Options at all.
-    if KCM.Options and KCM.Options.Refresh then
+    -- Event-driven panel updates go through the debounced RequestRefresh so
+    -- that a burst of GET_ITEM_INFO_RECEIVED events (dozens during first
+    -- panel open while item data hydrates from the server) collapses into
+    -- one rebuild. Without this, each event tears down every widget, which
+    -- flickers hover tooltips, resets scroll, and can swallow clicks.
+    -- User-driven mutations still call O.Refresh directly for snappy UI.
+    if KCM.Options and KCM.Options.RequestRefresh then
+        KCM.Options.RequestRefresh()
+    elseif KCM.Options and KCM.Options.Refresh then
         KCM.Options.Refresh()
     end
 end
@@ -237,14 +240,20 @@ function KCM:OnItemInfoReceived(event, itemID, success)
     if KCM.TooltipCache and KCM.TooltipCache.Invalidate then
         KCM.TooltipCache.Invalidate(itemID)
     end
-    -- Retry discovery for this item. The initial PEW/BAG_UPDATE_DELAYED pass
-    -- sees `pending=true` tooltips for items whose data hasn't loaded yet
-    -- and skips them; GET_ITEM_INFO_RECEIVED is the signal that the data
-    -- has now arrived.
+    -- Split bag vs non-bag events. First opening the options panel accesses
+    -- ~150 priority-list items that aren't in bags, each firing an event as
+    -- its data hydrates from the server. A full Pipeline.Recompute on each
+    -- (160 TC.Get calls × many events/sec) tanks FPS for 5-10 seconds; but
+    -- those items can't affect macro picks (macros only select from bag
+    -- items), so the recompute is pure waste. Only bag items need the full
+    -- pipeline; everything else just triggers a debounced panel refresh so
+    -- rows can swap "?" for the real name once data arrives.
     if KCM.BagScanner and KCM.BagScanner.HasItem and KCM.BagScanner.HasItem(itemID) then
         discoverOne(itemID, "item_info_received")
+        KCM.Pipeline.RequestRecompute("item_info_received")
+    elseif KCM.Options and KCM.Options.RequestRefresh then
+        KCM.Options.RequestRefresh()
     end
-    KCM.Pipeline.RequestRecompute("item_info_received")
 end
 
 function KCM:OnEnable()
