@@ -537,7 +537,20 @@ end
 -- Top-level Build
 -- ---------------------------------------------------------------------------
 
+-- Memoized options tree. AceConfigDialog calls the registered builder on
+-- every access (tab navigation included) via AceConfigRegistry:GetOptionsTable,
+-- and buildCategoryArgs is expensive (Selector.GetEffectivePriority runs the
+-- full candidate/rank pipeline with tooltip lookups for each of the 8
+-- categories). Rebuilding on every click produced perceptible lag where
+-- rapid tab clicks appeared to ignore the first press while the previous
+-- rebuild was still in flight. We cache the full tree and invalidate in
+-- O.Refresh, which already fires after every mutation that changes what
+-- the panel should show (Selector.*, SpecHelper.SetStatPriority, resync,
+-- reset-all, Pipeline.Recompute).
+O._cache = nil
+
 function O.Build()
+    if O._cache then return O._cache end
     local args = {
         general = {
             type  = "group",
@@ -556,11 +569,12 @@ function O.Build()
             }
         end
     end
-    return {
+    O._cache = {
         type = "group",
         name = PANEL_TITLE,
         args = args,
     }
+    return O._cache
 end
 
 -- ---------------------------------------------------------------------------
@@ -571,6 +585,7 @@ end
 -- the panel isn't open.
 
 function O.Refresh()
+    O._cache = nil
     local reg = LibStub and LibStub("AceConfigRegistry-3.0", true)
     if reg and reg.NotifyChange then
         reg:NotifyChange(REGISTRY_KEY)
