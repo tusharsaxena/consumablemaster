@@ -31,7 +31,7 @@ local ICON_SIZE     = 22
 local ICON_GAP      = 4
 local QUALITY_GAP   = 1  -- tighter gap between quality glyph and name
 local PICK_SIZE     = 20
-local QUALITY_SIZE  = 18
+local QUALITY_SIZE  = 14
 
 local function iconForItem(itemID)
     if not itemID or not (C_Item and C_Item.GetItemInfoInstant) then
@@ -65,26 +65,34 @@ local function applyLabelWidth(widget)
     if w <= 0 then return end
     local leftOffset = 2 * 22 + 2 * 4 -- ownedTex + gap + itemTex + gap (literals so we don't depend on locals defined below)
     if widget.qualityTex and widget.qualityTex:IsShown() then
-        leftOffset = leftOffset + 18 + 1 -- QUALITY_SIZE + QUALITY_GAP
+        leftOffset = leftOffset + 14 + 1 -- QUALITY_SIZE + QUALITY_GAP
     end
     local rightOffset = 20 + 4 -- PICK_SIZE + ICON_GAP
     widget.label:SetWidth(math.max(20, w - leftOffset - rightOffset))
 end
 
--- Returns the crafting-quality tier (1..5) for itemID, or nil if the item has
--- no crafting quality. Tries both Crafted and Reagent variants — different
--- consumable categories hang off different TradeSkill APIs.
-local function craftingQualityTier(itemID)
+-- Returns the small-variant quality-glyph atlas name for itemID, or nil if
+-- the item has no crafting quality. The atlas string is obtained directly
+-- from C_TradeSkillUI.GetItem{Crafted,Reagent}QualityInfo — the same API
+-- Blizzard uses to render the "Quality:" line in item tooltips — so we
+-- don't have to guess atlas naming conventions (which differ across
+-- DF/TWW/Midnight). Tries Crafted first (for crafted consumables) then
+-- Reagent (for reagent-typed consumables).
+local function craftingQualityAtlas(itemID)
     if not itemID or not _G.GetItemInfo then return nil end
     local _, link = _G.GetItemInfo(itemID)
     if not link then return nil end
-    if C_TradeSkillUI and C_TradeSkillUI.GetItemCraftedQualityByItemInfo then
-        local t = C_TradeSkillUI.GetItemCraftedQualityByItemInfo(link)
-        if t and t > 0 then return t end
-    end
-    if C_TradeSkillUI and C_TradeSkillUI.GetItemReagentQualityByItemInfo then
-        local t = C_TradeSkillUI.GetItemReagentQualityByItemInfo(link)
-        if t and t > 0 then return t end
+    local tsi = C_TradeSkillUI
+    if not tsi then return nil end
+    local getters = { tsi.GetItemCraftedQualityInfo, tsi.GetItemReagentQualityInfo }
+    for _, fn in ipairs(getters) do
+        if fn then
+            local info = fn(link)
+            if info then
+                local atlas = info.iconSmall or info.icon
+                if atlas and atlas ~= "" then return atlas end
+            end
+        end
     end
     return nil
 end
@@ -123,16 +131,15 @@ local methods = {
         self.itemTex:SetTexture(iconForItem(self.itemID))
         if self.isPick then self.pickTex:Show() else self.pickTex:Hide() end
 
-        local tier = craftingQualityTier(self.itemID)
+        local qualityAtlas = craftingQualityAtlas(self.itemID)
         self.label:ClearAllPoints()
         -- LEFT anchor only — width is enforced by applyLabelWidth's SetWidth.
         -- Setting both LEFT and RIGHT alongside SetWidth made truncation
         -- unreliable on some layout passes.
-        if tier then
-            -- Professions-Icon-Quality-Tier<N>-Inv is the inventory-style
-            -- tier glyph (same one Blizzard overlays on bag slots for
-            -- crafted items). Atlas covers tiers 1..5.
-            self.qualityTex:SetAtlas("Professions-Icon-Quality-Tier" .. tier .. "-Inv")
+        -- Pass useAtlasSize=false so SetAtlas respects our SetSize(14,14);
+        -- without it the texture snaps to the atlas's native size.
+        if qualityAtlas then
+            self.qualityTex:SetAtlas(qualityAtlas, false)
             self.qualityTex:Show()
             self.label:SetPoint("LEFT", self.qualityTex, "RIGHT", QUALITY_GAP, 0)
         else
