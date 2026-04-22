@@ -1,0 +1,28 @@
+# Claude Code local state
+.claude/settings.local.json
+.claude/.credentials*
+
+# OS cruft (WSL + Windows dual access)
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Backup / scratch files
+*.bak
+*.orig
+*.rej
+*.tmp
+
+# Build / packaging artifacts (if we ever add a packager)
+.release/
+*.zip
