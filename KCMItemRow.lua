@@ -27,10 +27,20 @@ local PICK_TEX      = "Interface\\COMMON\\FavoritesIcon"
 local FALLBACK_ICON = 134400 -- INV_Misc_QuestionMark
 
 local ROW_HEIGHT    = 26
-local ICON_SIZE     = 22
+-- Item icon (real item texture) at full row size. Owned glyph runs ~10%
+-- smaller because ReadyCheck-Ready/NotReady are full-bleed textures with
+-- no transparent padding — at the same pixel size they read as visually
+-- larger than the padded button glyphs (info / remove) on the right side
+-- of the row. Trimming OWNED_ICON_SIZE evens out the perceived size.
+local ICON_SIZE       = 22
+local OWNED_ICON_SIZE = 20
 local ICON_GAP      = 4
 local QUALITY_GAP   = 1  -- tighter gap between quality glyph and name
-local PICK_SIZE     = 20
+-- Pick star lives on the padded side (FavoritesIcon has significant
+-- transparent padding around the glyph) so it needs a slightly larger box
+-- than OWNED_ICON_SIZE to read the same visible size as ICON_SIZE / the
+-- padded row buttons (score / delete, both 22).
+local PICK_SIZE     = 22
 local QUALITY_SIZE  = 14
 
 local function iconForItem(itemID)
@@ -97,11 +107,11 @@ local function applyLabelWidth(widget)
     if not frame then return end
     local w = frame.width or frame:GetWidth() or 0
     if w <= 0 then return end
-    local leftOffset = 2 * 22 + 2 * 4 -- ownedTex + gap + itemTex + gap (literals so we don't depend on locals defined below)
+    local leftOffset = 20 + 4 + 22 + 4 -- ownedTex (OWNED_ICON_SIZE) + gap + itemTex (ICON_SIZE) + gap
     if widget.qualityTex and widget.qualityTex:IsShown() then
         leftOffset = leftOffset + 14 + 1 -- QUALITY_SIZE + QUALITY_GAP
     end
-    local rightOffset = 20 + 4 -- PICK_SIZE + ICON_GAP
+    local rightOffset = 22 + 4 -- PICK_SIZE + ICON_GAP
     widget.label:SetWidth(math.max(20, w - leftOffset - rightOffset))
 end
 
@@ -216,7 +226,7 @@ local function Constructor()
     frame:SetHeight(ROW_HEIGHT)
 
     local ownedTex = frame:CreateTexture(nil, "ARTWORK")
-    ownedTex:SetSize(ICON_SIZE, ICON_SIZE)
+    ownedTex:SetSize(OWNED_ICON_SIZE, OWNED_ICON_SIZE)
     ownedTex:SetPoint("LEFT", 0, 0)
 
     local itemTex = frame:CreateTexture(nil, "ARTWORK")

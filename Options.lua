@@ -316,6 +316,41 @@ local OWNED_ICON     = "|TInterface\\RaidFrame\\ReadyCheck-Ready:20|t"
 local NOT_OWNED_ICON = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:20|t"
 local PICK_ICON      = "|TInterface\\COMMON\\FavoritesIcon:20|t"
 
+-- Format a number with thousands separators so the score tooltip reads
+-- cleanly (the heal-value + immediate-bonus sums run to nine digits).
+-- Non-numbers pass through as tostring; fractional values keep one decimal.
+local function formatNumber(n)
+    if type(n) ~= "number" then return tostring(n) end
+    local isWhole = (n == math.floor(n))
+    local abs = math.abs(n)
+    local body = isWhole and tostring(math.floor(abs)) or ("%.1f"):format(abs)
+    -- Reverse, group every 3 digits, reverse back. Works for both the
+    -- integer form and the "123456.7" form (the decimal part never exceeds
+    -- 3 digits so the post-decimal doesn't pick up stray commas once
+    -- reversed).
+    local sepd = body:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    return (n < 0) and ("-" .. sepd) or sepd
+end
+
+-- Build the multi-line tooltip body that the score button shows on hover
+-- from a Ranker.Explain() result. Each signal line is the contributing
+-- factor's label, value, and optional note; the summary appended at the
+-- end describes the overall scoring rule for the category.
+local function formatScoreTooltipDesc(explain)
+    if not explain then return "" end
+    local lines = {}
+    for _, s in ipairs(explain.signals or {}) do
+        local note = s.note and ("  |cff888888(" .. s.note .. ")|r") or ""
+        table.insert(lines, ("  %s: |cffffffff%s|r%s")
+            :format(s.label or "?", formatNumber(s.value or 0), note))
+    end
+    if explain.summary and explain.summary ~= "" then
+        table.insert(lines, "")
+        table.insert(lines, "|cffaaaaaa" .. explain.summary .. "|r")
+    end
+    return table.concat(lines, "\n")
+end
+
 local function buildStatPriorityArgs(specKey)
     local args = {}
 
@@ -621,12 +656,32 @@ local function buildCategoryArgs(catKey)
                 end
                 return hasItem and hasItem(id) or false
             end
+
+            -- Ranker ctx is built once per category per render: specPriority
+            -- for stat-aware cats, bestImmediateAmount for HP_POT / MP_POT.
+            -- Every row's score tooltip uses the same ctx so the numbers
+            -- match the effective sort exactly.
+            local rankerCtx
+            if cat.specAware and specKey and KCM.SpecHelper and KCM.SpecHelper.GetStatPriority then
+                rankerCtx = { specPriority = KCM.SpecHelper.GetStatPriority(specKey) }
+            end
+            if KCM.Ranker and KCM.Ranker.BuildContext then
+                rankerCtx = KCM.Ranker.BuildContext(catKey, priority, rankerCtx)
+            end
+
             for i, id in ipairs(priority) do
                 local base   = 30 + i * 10
                 local owned  = isOwned(id)
                 local isFirst = (i == 1)
                 local isLast  = (i == #priority)
                 local rowID   = id  -- capture for closures
+
+                local explain = KCM.Ranker and KCM.Ranker.Explain
+                    and KCM.Ranker.Explain(catKey, rowID, rankerCtx) or nil
+                local scoreTitle = explain
+                    and ("Rank score: %s"):format(formatNumber(explain.score))
+                    or "Rank score"
+                local scoreDesc  = formatScoreTooltipDesc(explain)
 
                 args["row" .. i .. "_label"] = {
                     type  = "description",
@@ -639,11 +694,27 @@ local function buildCategoryArgs(catKey)
                         owned  = owned,
                         isPick = (pick and rowID == pick) and true or false,
                     },
-                    width = 2.0,
+                    width = 1.8,
+                }
+                -- FriendsFrame\InformationIcon is the classic blue "i" info
+                -- glyph — reads as "hover for info", matches the button's
+                -- role as a tooltip anchor. Clicking is a no-op; this button
+                -- exists only to display the per-item score breakdown.
+                args["row" .. i .. "_score"] = {
+                    type  = "execute",
+                    order = base + 1,
+                    name  = scoreTitle,
+                    desc  = scoreDesc,
+                    image = "Interface\\FriendsFrame\\InformationIcon",
+                    imageWidth  = 22,
+                    imageHeight = 22,
+                    dialogControl = "KCMScoreButton",
+                    width = 0.155,
+                    func  = function() end,
                 }
                 args["row" .. i .. "_up"] = {
                     type  = "execute",
-                    order = base + 1,
+                    order = base + 2,
                     name  = "",
                     desc  = "Move higher in priority",
                     descStyle = "hide",
@@ -662,7 +733,7 @@ local function buildCategoryArgs(catKey)
                 }
                 args["row" .. i .. "_down"] = {
                     type  = "execute",
-                    order = base + 2,
+                    order = base + 3,
                     name  = "",
                     desc  = "Move lower in priority",
                     descStyle = "hide",
@@ -681,7 +752,7 @@ local function buildCategoryArgs(catKey)
                 }
                 args["row" .. i .. "_x"] = {
                     type  = "execute",
-                    order = base + 3,
+                    order = base + 4,
                     name  = "",
                     desc  = "Remove from this category. Blocks the item so "
                          .. "auto-discovery won't re-add it.",
@@ -691,8 +762,8 @@ local function buildCategoryArgs(catKey)
                     -- distinct from ReadyCheck-NotReady, which KCMItemRow uses
                     -- for the "not in bags" status indicator on the left.
                     image = "atlas:transmog-icon-remove",
-                    imageWidth  = 24,
-                    imageHeight = 24,
+                    imageWidth  = 22,
+                    imageHeight = 22,
                     dialogControl = "KCMIconButton",
                     width = 0.155,
                     func  = function()
@@ -708,7 +779,7 @@ local function buildCategoryArgs(catKey)
 
     -- Per-category reset -----------------------------------------
     -- Order numbers must sit above the highest possible row order. Rows use
-    -- (30 + i * 10), so a list of N items reaches 30 + N*10 + 3. A constant
+    -- (30 + i * 10), so a list of N items reaches 30 + N*10 + 4. A constant
     -- well above any plausible category size keeps the divider/reset pinned
     -- at the bottom regardless of list length (Stat Food in particular can
     -- exceed 17 entries, which is where the old order=201 began appearing

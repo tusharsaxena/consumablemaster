@@ -276,6 +276,134 @@ function R.SortCandidates(catKey, itemIDs, ctx)
     return ids, rows
 end
 
+-- Per-item score breakdown for the priority list's "score" tooltip. Returns
+-- { score, summary, signals = { {label, value, note?}, ... } } so Options
+-- can render a readable explanation without duplicating scorer logic. The
+-- individual signals mirror the additive terms inside each scorer; the
+-- summary is a short plain-English description of the scoring rule.
+--
+-- Categories that differ significantly (HP/MP pots with the immediate
+-- bonus, healthstones with the preference table, stat-priority categories)
+-- get custom breakdowns. Spell entries short-circuit to SPELL_SCORE — the
+-- sentinel that keeps them on top unless the user pins otherwise.
+function R.Explain(catKey, itemID, ctx)
+    local result = { score = 0, summary = "", signals = {} }
+    if not catKey or not itemID then return result end
+
+    if KCM.ID and KCM.ID.IsSpell(itemID) then
+        result.score   = SPELL_SCORE
+        result.summary = "Spell entries rank above every item by default."
+        table.insert(result.signals, { label = "spell bonus", value = SPELL_SCORE })
+        return result
+    end
+
+    local quality, ilvl, _, tt = itemFields(itemID)
+    local qualityScore = quality * QUALITY_WEIGHT
+    local function pushBase()
+        if ilvl and ilvl > 0 then
+            table.insert(result.signals, { label = "ilvl", value = ilvl })
+        end
+        if qualityScore > 0 then
+            table.insert(result.signals, { label = "quality x100", value = qualityScore })
+        end
+    end
+
+    if catKey == "FOOD" or catKey == "DRINK" then
+        local isFood = (catKey == "FOOD")
+        local flat   = isFood and ((tt.healValueAvg or 0) + (tt.healValue or 0))
+                                or ((tt.manaValueAvg or 0) + (tt.manaValue or 0))
+        local pct    = isFood and (tt.healPct or 0) or (tt.manaPct or 0)
+        local pctContribution = pct * PCT_WEIGHT
+        local conjured = tt.isConjured and CONJURED_BONUS or 0
+        if flat > 0 then
+            table.insert(result.signals, {
+                label = isFood and "heal value" or "mana value",
+                value = flat,
+            })
+        end
+        if pct > 0 then
+            table.insert(result.signals, {
+                label = ("pct x%d"):format(PCT_WEIGHT),
+                value = pctContribution,
+                note  = ("%g%% of max"):format(pct),
+            })
+        end
+        if conjured > 0 then
+            table.insert(result.signals, { label = "conjured bonus", value = conjured })
+        end
+        pushBase()
+        result.score   = flat + pctContribution + conjured + ilvl + qualityScore
+        result.summary = "Flat + %-based restore, conjured outranks crafted, ilvl + quality break ties."
+        return result
+    end
+
+    if catKey == "HP_POT" or catKey == "MP_POT" then
+        local kind       = (catKey == "HP_POT") and "HP" or "MP"
+        local amount     = potAmount(tt, kind)
+        local immediate  = potIsImmediate(tt, kind)
+        local qualifies  = qualifiesForImmediateBonus(tt, kind, ctx)
+        local bonus      = qualifies and IMMEDIATE_POT_BONUS or 0
+        if amount > 0 then
+            table.insert(result.signals, {
+                label = (kind == "HP") and "heal value" or "mana value",
+                value = amount,
+                note  = immediate and "immediate" or "over time",
+            })
+        end
+        table.insert(result.signals, {
+            label = "immediate bonus",
+            value = bonus,
+            note  = immediate and "immediate"
+                or (qualifies
+                    and ("HOT > %d%% of best immediate"):format(HOT_OVER_IMMEDIATE_PCT)
+                    or  ("HOT <= %d%% of best immediate"):format(HOT_OVER_IMMEDIATE_PCT)),
+        })
+        pushBase()
+        result.score = amount + bonus + ilvl + qualityScore
+        result.summary = ("Immediate wins unless a HOT pot's amount beats the best immediate by more than %d%%."):format(HOT_OVER_IMMEDIATE_PCT)
+        return result
+    end
+
+    if catKey == "HS" then
+        local pref = HEALTHSTONE_PREFERENCE[itemID] or 0
+        table.insert(result.signals, { label = "preference rank", value = pref })
+        pushBase()
+        result.score   = pref + ilvl
+        result.summary = "Hard-coded preference table (modern > legacy) + ilvl tiebreak."
+        return result
+    end
+
+    if catKey == "STAT_FOOD" or catKey == "CMBT_POT" or catKey == "FLASK" then
+        local specPriority = ctx and ctx.specPriority
+        local statTotal    = 0
+        for _, sb in ipairs(tt.statBuffs or {}) do
+            local w       = statWeight(sb.stat, specPriority)
+            local contrib = w * (sb.amount or 1)
+            if contrib > 0 then
+                table.insert(result.signals, {
+                    label = ("%s buff"):format(sb.stat),
+                    value = contrib,
+                    note  = ("amount %d x weight %d"):format(sb.amount or 0, w),
+                })
+                statTotal = statTotal + contrib
+            end
+        end
+        if #result.signals == 0 then
+            table.insert(result.signals, {
+                label = "stat buffs",
+                value = 0,
+                note  = specPriority and "no buffs match spec priority" or "spec priority unresolved",
+            })
+        end
+        pushBase()
+        result.score   = statTotal + ilvl + qualityScore
+        result.summary = "Primary-stat buffs outweigh any secondary; secondary ranks by priority position."
+        return result
+    end
+
+    return result
+end
+
 -- Expose helpers for tests / debug code that wants per-signal insight.
 R._statWeight                = statWeight
 R._scoreByStatPriority       = scoreByStatPriority

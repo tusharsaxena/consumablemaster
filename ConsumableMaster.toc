@@ -35,6 +35,7 @@ Ranker.lua
 Selector.lua
 MacroManager.lua
 KCMIconButton.lua
+KCMScoreButton.lua
 KCMHeading.lua
 KCMTitle.lua
 KCMMacroDragIcon.lua
