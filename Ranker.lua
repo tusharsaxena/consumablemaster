@@ -36,6 +36,15 @@ local CONJURED_BONUS = 1e6
 local PCT_WEIGHT     = 1e4  -- makes %-based food outrank flat-value food
 local QUALITY_WEIGHT = 100
 
+-- HP_POT / MP_POT: immediate restores always beat heal-over-time, unless the
+-- HOT's total restored exceeds IMMEDIATE_PCT_THRESHOLD of the player's max
+-- resource. The bonus is large enough to dominate any plausible raw-value
+-- difference (amounts cap at ~1e6, bonus is 1e8) so within "immediate-tier"
+-- the raw amount still breaks ties naturally. User pins always win over the
+-- Ranker score, so this can be manually overridden per category.
+local IMMEDIATE_POT_BONUS     = 1e8
+local IMMEDIATE_PCT_THRESHOLD = 20
+
 -- Stat-priority weighting. Primary gets a flat floor so any primary-stat
 -- consumable beats any secondary-stat one regardless of magnitude; within
 -- secondary, earlier position = higher weight.
@@ -72,6 +81,45 @@ local function statWeight(stat, specPriority)
         end
     end
     return 0
+end
+
+-- Decide whether an HP/MP pot qualifies for the immediate bonus. `kind` is
+-- "HP" or "MP"; the function reads the matching tooltip fields and the
+-- player's current max HP / max mana. Returns true when either:
+--   * the tooltip has no over-time duration (pure immediate restore), or
+--   * the total restored exceeds IMMEDIATE_PCT_THRESHOLD of max resource —
+--     so a big HOT still gets the bonus.
+-- When the player's max resource can't be resolved (0 / nil), the HOT
+-- branch falls through to false so immediate pots keep winning by default.
+-- Matches the user-stated preference: immediate wins unless the HOT is big.
+local function qualifiesForImmediateBonus(tt, kind)
+    if not tt then return false end
+    local overSec, pct, flat, maxResource
+    if kind == "HP" then
+        overSec = tt.healOverSec
+        pct     = tt.healPct
+        flat    = (tt.healValueAvg or 0) + (tt.healValue or 0)
+        maxResource = UnitHealthMax and UnitHealthMax("player") or 0
+    else
+        overSec = tt.manaOverSec
+        pct     = tt.manaPct
+        flat    = (tt.manaValueAvg or 0) + (tt.manaValue or 0)
+        maxResource = UnitPowerMax and UnitPowerMax("player", 0) or 0
+    end
+    if not overSec and not (pct and tt.pctOverDurationSec) then
+        return true  -- immediate
+    end
+    -- Over-time: evaluate the 20% threshold. Prefer the explicit pct when
+    -- present; derive from flat amount otherwise. "X% every second for Y
+    -- sec" multiplies out to total percent restored.
+    local totalPct
+    if pct then
+        totalPct = (tt.isPctPerSecond and tt.pctOverDurationSec)
+            and (pct * tt.pctOverDurationSec) or pct
+    elseif maxResource > 0 and flat > 0 then
+        totalPct = flat / maxResource * 100
+    end
+    return (totalPct or 0) > IMMEDIATE_PCT_THRESHOLD
 end
 
 -- Shared scoring for stat-aware categories. Sum of (weight × amount)
@@ -111,15 +159,19 @@ local scorers = {
     end,
     HP_POT = function(itemID)
         local quality, ilvl, _, tt = itemFields(itemID)
+        local bonus = qualifiesForImmediateBonus(tt, "HP") and IMMEDIATE_POT_BONUS or 0
         return (tt.healValueAvg or 0)
              + (tt.healValue or 0)
+             + bonus
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
     MP_POT = function(itemID)
         local quality, ilvl, _, tt = itemFields(itemID)
+        local bonus = qualifiesForImmediateBonus(tt, "MP") and IMMEDIATE_POT_BONUS or 0
         return (tt.manaValueAvg or 0)
              + (tt.manaValue or 0)
+             + bonus
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
@@ -183,5 +235,6 @@ function R.SortCandidates(catKey, itemIDs, ctx)
 end
 
 -- Expose helpers for tests / debug code that wants per-signal insight.
-R._statWeight          = statWeight
-R._scoreByStatPriority = scoreByStatPriority
+R._statWeight                = statWeight
+R._scoreByStatPriority       = scoreByStatPriority
+R._qualifiesForImmediateBonus = qualifiesForImmediateBonus

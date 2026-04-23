@@ -13,6 +13,8 @@
 --   healPct, manaPct               -- % of max per tick (e.g. 7 for "7%")
 --   isPctPerSecond                 -- true if "every second" appears alongside pct
 --   pctOverDurationSec             -- duration of the % regen (distinct from buff)
+--   -- Heal / mana over time (flat HOT pots: "Restores N health over X sec")
+--   healOverSec, manaOverSec       -- duration of the flat HOT effect in seconds
 --   -- Stat buffs
 --   statBuffs = { {stat="MASTERY", amount=935}, ... }
 --   hasStatBuff                    -- true if any statBuffs captured
@@ -202,11 +204,18 @@ local function parseDuration(line, result)
         local n = toNumberCommas(s)
         -- "over N sec" always indicates channel / regen duration, not a
         -- buff. Keep it out of buffDurationSec; record as pctOverDurationSec
-        -- when the line describes %-based regen so the Ranker can compute
-        -- total healing.
+        -- for %-based regen and as healOverSec / manaOverSec for flat-value
+        -- HOT pots ("Restores 265,420 health over 20 sec") so the Ranker can
+        -- distinguish immediate-heal vs heal-over-time pots.
         if cleaned:find("over ", 1, true) then
             if result.healPct or result.manaPct then
                 result.pctOverDurationSec = n
+            end
+            if result.healValue or result.healValueAvg then
+                result.healOverSec = n
+            end
+            if result.manaValue or result.manaValueAvg then
+                result.manaOverSec = n
             end
             return
         end
