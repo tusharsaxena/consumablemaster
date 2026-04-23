@@ -8,11 +8,13 @@
 --
 -- Layered structure (top-level `args`):
 --   1. general      — debug toggle, force resync, reset-all.
---   2. <categories> — one sub-group per Categories.LIST entry: add-by-id
+--   2. statpriority — shared Viewing-spec selector + primary/secondary
+--                     dropdowns + reset. The selector drives
+--                     O._viewedSpec, which spec-aware category pages
+--                     read when rendering their priority list.
+--   3. <categories> — one sub-group per Categories.LIST entry: add-by-id
 --                     input, ranked priority list (↑/↓/X per row), per-
---                     category reset. Spec-aware categories additionally
---                     get a spec selector at the top and a stat-priority
---                     editor at the bottom.
+--                     category reset.
 --
 -- Mutation flow: widget -> KCM.Selector.* (or SpecHelper.SetStatPriority)
 -- -> KCM.Pipeline.RequestRecompute -> KCM.Options.Refresh. The Refresh
@@ -48,20 +50,17 @@ local function currentSpecKey()
     return nil
 end
 
--- Per-category "viewed spec" — which spec's bucket the user is editing on
--- the spec-aware pages. Module-local (not persisted) so every session
--- opens on the active spec; the user can switch via the selector. Keyed
--- by catKey because different categories may have unrelated spec contexts
--- (e.g. editing Flask for a Warrior spec while viewing Stat Food for a
--- Shaman spec makes no sense, but the state model allows it so we don't
--- cross-pollinate dropdowns).
-O._viewedSpec = O._viewedSpec or {}
+-- Shared "viewed spec" — which spec's bucket the user is editing on the
+-- spec-aware pages (Stat Food, Flask) AND on the Stat Priority tab.
+-- Module-local (not persisted) so every session opens on the active spec;
+-- the user switches via the selector on the Stat Priority tab and the
+-- change fans out to every spec-aware category list.
+O._viewedSpec = O._viewedSpec or nil
 
-local function resolveViewedSpec(catKey)
-    local viewed = O._viewedSpec[catKey]
-    if viewed then return viewed end
+local function resolveViewedSpec()
+    if O._viewedSpec then return O._viewedSpec end
     local cur = currentSpecKey()
-    O._viewedSpec[catKey] = cur
+    O._viewedSpec = cur
     return cur
 end
 
@@ -85,26 +84,61 @@ local SECONDARY_OPTIONS = {
 }
 local SECONDARY_SORTING = { "", "CRIT", "HASTE", "MASTERY", "VERSATILITY" }
 
+-- Resolve a specKey like "7_264" into a friendly "<icon> Shaman — Enhancement"
+-- label, prefixed with the spec's Blizzard icon when the API can surface it.
+-- Falls back to the raw key if the classID/specID don't parse (e.g. a stale
+-- DB entry from a removed spec) so the UI always renders *something*.
+local specLabelCache = {}
+local function formatSpec(specKey)
+    if not specKey then return "(no active spec)" end
+    local cached = specLabelCache[specKey]
+    if cached then return cached end
+
+    local classID, specID = specKey:match("^(%d+)_(%d+)$")
+    classID, specID = tonumber(classID), tonumber(specID)
+    if not (classID and specID) then return specKey end
+
+    local className = tostring(classID)
+    if GetClassInfo then
+        local n = GetClassInfo(classID)
+        if n then className = n end
+    end
+
+    local specName, specIcon
+    if GetNumSpecializationsForClassID and GetSpecializationInfoForClassID then
+        for i = 1, (GetNumSpecializationsForClassID(classID) or 0) do
+            local sid, name, _, icon = GetSpecializationInfoForClassID(classID, i)
+            if sid == specID then
+                specName = name
+                specIcon = icon
+                break
+            end
+        end
+    end
+
+    local label = ("%s — %s"):format(className, specName or tostring(specID))
+    if specIcon then
+        label = ("|T%s:16|t %s"):format(specIcon, label)
+    end
+    specLabelCache[specKey] = label
+    return label
+end
+
 local function specSelectorValues()
     local values, sorting = {}, {}
     if not (KCM.SpecHelper and KCM.SpecHelper.AllSpecs) then
         return values, sorting
     end
     local rows = KCM.SpecHelper.AllSpecs()
-    -- Group by class to keep the dropdown scannable: "<Class> — <Spec>".
-    -- GetClassInfo isn't always available on older clients; fall back to
-    -- classID if we can't resolve a friendly name.
     for _, row in ipairs(rows) do
-        local className = row.classID
-        if GetClassInfo then
-            local n = GetClassInfo(row.classID)
-            if n then className = n end
-        end
-        values[row.specKey] = ("%s — %s"):format(tostring(className), row.specName or "?")
+        values[row.specKey] = formatSpec(row.specKey)
         table.insert(sorting, row.specKey)
     end
+    -- Sort by the label with texture markup stripped so "|T...|t Shaman ..."
+    -- sorts next to "Shaman", not under "|".
+    local stripMarkup = function(s) return (s:gsub("|T.-|t%s*", "")) end
     table.sort(sorting, function(a, b)
-        return (values[a] or "") < (values[b] or "")
+        return stripMarkup(values[a] or "") < stripMarkup(values[b] or "")
     end)
     return values, sorting
 end
@@ -156,6 +190,7 @@ local function buildGeneralArgs()
             order = 1,
             name  = "Debug mode",
             desc  = "Print per-event diagnostics to chat. Same as /kcm debug.",
+            width = "full",
             get   = function()
                 return KCM.Debug and KCM.Debug.IsOn and KCM.Debug.IsOn() or false
             end,
@@ -175,6 +210,7 @@ local function buildGeneralArgs()
             name  = "Force resync",
             desc  = "Invalidate tooltip cache, rescan bags, rewrite every macro. "
                  .. "Same as /kcm resync. Blocked in combat.",
+            width = "full",
             func  = function()
                 if InCombatLockdown and InCombatLockdown() then
                     print("|cffff8800[KCM]|r in combat — resync deferred until regen.")
@@ -200,6 +236,7 @@ local function buildGeneralArgs()
             desc    = "Wipe all added/blocked/pinned items and stat-priority "
                    .. "overrides. Seed defaults are restored. This cannot "
                    .. "be undone.",
+            width   = "full",
             confirm = true,
             confirmText = "Reset ALL ConsumableMaster customization to defaults?",
             func    = function()
@@ -208,15 +245,6 @@ local function buildGeneralArgs()
                 end
                 O.Refresh()
             end,
-        },
-
-        version = {
-            type  = "description",
-            order = 100,
-            name  = function()
-                return ("\n|cff888888Version %s|r"):format(tostring(KCM.VERSION or "?"))
-            end,
-            fontSize = "small",
         },
     }
 end
@@ -266,13 +294,13 @@ local function buildStatPriorityArgs(specKey)
         end,
     }
 
-    args.spacer = { type = "description", order = 2, name = " ", width = 1.0 }
+    args.primarySpacer = { type = "description", order = 2, name = " ", width = 1.0 }
 
     for i = 1, 4 do
         args["secondary" .. i] = {
             type   = "select",
             order  = 10 + i,
-            name   = ("Secondary #%d"):format(i),
+            name   = ("Secondary stat #%d"):format(i),
             desc   = "Secondary stat ranked at position " .. i
                   .. ". Position 1 weighs the most; leave as (none) to "
                   .. "truncate the list.",
@@ -313,10 +341,75 @@ local function buildStatPriorityArgs(specKey)
     return args
 end
 
+-- Builds the top-level "Stat Priority" tab (one shared panel replacing the
+-- per-category inline groups). The spec selector here is the single source of
+-- truth for O._viewedSpec — changing it also re-renders spec-aware category
+-- pages (Stat Food, Flask) with the new spec's priority list.
+local function buildStatPriorityTabArgs()
+    local specKey = resolveViewedSpec()
+    local args = {}
+
+    args.title = {
+        type  = "description",
+        order = 1,
+        name  = "Stat Priority",
+        dialogControl = "KCMTitle",
+    }
+
+    local values, sorting = specSelectorValues()
+    args.specSelector = {
+        type    = "select",
+        order   = 2,
+        name    = "Viewing spec",
+        desc    = "Select which spec's stat priority you want to edit. This "
+               .. "also determines which spec's priority list is shown on "
+               .. "the Stat Food and Flask tabs.",
+        values  = values,
+        sorting = sorting,
+        width   = "double",
+        get     = function() return O._viewedSpec end,
+        set     = function(_, val)
+            O._viewedSpec = val
+            if O.Refresh then O.Refresh() end
+        end,
+    }
+
+    args.selectorSpacer = {
+        type  = "description",
+        order = 3,
+        name  = " ",
+        fontSize = "medium",
+    }
+
+    if not specKey then
+        args.empty = {
+            type  = "description",
+            order = 10,
+            name  = "|cffff8800No spec selected.|r Pick one above to edit its stat priority.",
+            fontSize = "medium",
+        }
+        return args
+    end
+
+    -- Splice the primary/secondary/reset editor in. Keys don't collide with
+    -- title/specSelector/selectorSpacer/empty, and each call to
+    -- buildStatPriorityArgs creates fresh tables, so order shifts here don't
+    -- leak across calls.
+    local editor = buildStatPriorityArgs(specKey)
+    for k, v in pairs(editor) do
+        if type(v) == "table" and type(v.order) == "number" then
+            v.order = v.order + 10
+        end
+        args[k] = v
+    end
+
+    return args
+end
+
 local function buildCategoryArgs(catKey)
     local cat = KCM.Categories and KCM.Categories.Get and KCM.Categories.Get(catKey)
     if not cat then return {} end
-    local specKey = cat.specAware and resolveViewedSpec(catKey) or nil
+    local specKey = cat.specAware and resolveViewedSpec() or nil
 
     local args = {}
 
@@ -330,31 +423,25 @@ local function buildCategoryArgs(catKey)
         args.descSubheader = {
             type  = "description",
             order = 2,
-            name  = ("Spec-aware. Viewing: %s."):format(tostring(specKey or "(no active spec)")),
+            name  = ("Spec-aware. Viewing: %s."):format(formatSpec(specKey)),
+            fontSize = "medium",
+        }
+        args.subheaderSpacer = {
+            type  = "description",
+            order = 3,
+            name  = " ",
             fontSize = "medium",
         }
     end
-
-    -- Spec selector (spec-aware categories only) ----------------
-    if cat.specAware then
-        local values, sorting = specSelectorValues()
-        args.specSelector = {
-            type    = "select",
-            order   = 5,
-            name    = "Viewing spec",
-            desc    = "Select which spec's priority list and stat priority "
-                   .. "you want to edit. Defaults to your active spec; all "
-                   .. "39 specs are editable even if not your current one.",
-            values  = values,
-            sorting = sorting,
-            width   = "double",
-            get     = function() return O._viewedSpec[catKey] end,
-            set     = function(_, val)
-                O._viewedSpec[catKey] = val
-                if O.Refresh then O.Refresh() end
-            end,
-        }
-    end
+    args.dragIcon = {
+        type  = "description",
+        order = 4,
+        name  = "",
+        dialogControl = "KCMMacroDragIcon",
+        descStyle = "hide",
+        arg   = { macroName = cat.macroName },
+        width = "full",
+    }
 
     -- Add-by-id --------------------------------------------------
     args.addHeader = {
@@ -458,7 +545,7 @@ local function buildCategoryArgs(catKey)
                         owned  = owned,
                         isPick = (pick and rowID == pick) and true or false,
                     },
-                    width = 1.75,
+                    width = 2.0,
                 }
                 args["row" .. i .. "_up"] = {
                     type  = "execute",
@@ -505,7 +592,11 @@ local function buildCategoryArgs(catKey)
                     desc  = "Remove from this category. Blocks the item so "
                          .. "auto-discovery won't re-add it.",
                     descStyle = "hide",
-                    image = "Interface\\RaidFrame\\ReadyCheck-NotReady",
+                    -- atlas:transmog-icon-remove is Blizzard's "remove item"
+                    -- glyph (red circle-slash / no-entry sign) — visually
+                    -- distinct from ReadyCheck-NotReady, which KCMItemRow uses
+                    -- for the "not in bags" status indicator on the left.
+                    image = "atlas:transmog-icon-remove",
                     imageWidth  = 24,
                     imageHeight = 24,
                     dialogControl = "KCMIconButton",
@@ -545,21 +636,6 @@ local function buildCategoryArgs(catKey)
         end,
     }
 
-    -- Stat-priority editor (spec-aware only) ---------------------
-    -- Appended as an inline group so primary + 4 secondary dropdowns +
-    -- reset render in their own visually-distinct panel below the
-    -- priority list. Only shown when a spec is resolvable — otherwise
-    -- the dropdowns have no target key.
-    if cat.specAware and specKey then
-        args.statGroup = {
-            type   = "group",
-            order  = 300,
-            name   = "Stat priority (" .. specKey .. ")",
-            inline = true,
-            args   = buildStatPriorityArgs(specKey),
-        }
-    end
-
     return args
 end
 
@@ -587,6 +663,12 @@ function O.Build()
             order = 1,
             name  = "General",
             args  = buildGeneralArgs(),
+        },
+        statpriority = {
+            type  = "group",
+            order = 2,
+            name  = "Stat Priority",
+            args  = buildStatPriorityTabArgs(),
         },
     }
     if KCM.Categories and KCM.Categories.LIST then

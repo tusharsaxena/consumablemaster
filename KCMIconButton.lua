@@ -47,15 +47,25 @@ local methods = {
         end
     end,
 
+    -- `path` may be either a traditional texture path ("Interface\\...") or
+    -- a modern atlas name prefixed with "atlas:" (e.g. "atlas:transmog-icon-remove").
+    -- Atlases avoid hardcoding file paths for icons that Blizzard ships only
+    -- via the atlas system. useAtlasSize=false honours our SetImageSize call.
     ["SetImage"] = function(self, path, ...)
         local image = self.image
-        image:SetTexture(path)
-        if image:GetTexture() then
-            local n = select("#", ...)
-            if n == 4 or n == 8 then
-                image:SetTexCoord(...)
-            else
-                image:SetTexCoord(0, 1, 0, 1)
+        if type(path) == "string" and path:sub(1, 6) == "atlas:" then
+            image:SetTexture(nil)
+            image:SetAtlas(path:sub(7), false)
+            image:SetTexCoord(0, 1, 0, 1)
+        else
+            image:SetTexture(path)
+            if image:GetTexture() then
+                local n = select("#", ...)
+                if n == 4 or n == 8 then
+                    image:SetTexCoord(...)
+                else
+                    image:SetTexCoord(0, 1, 0, 1)
+                end
             end
         end
     end,

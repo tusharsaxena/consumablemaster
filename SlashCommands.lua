@@ -333,6 +333,7 @@ local function printHelp()
     print("  |cffffff00/kcm debug|r       toggle debug mode")
     print("  |cffffff00/kcm resync|r      force macros to resync from bags")
     print("  |cffffff00/kcm reset|r       reset all priority lists to defaults")
+    print("  |cffffff00/kcm version|r     print addon version")
     print("  |cffffff00/kcm dump|r        dump internal state. subcommands:")
     printDumpLines("/kcm dump ")
 end
@@ -409,6 +410,8 @@ function KCM:OnSlashCommand(msg)
         else
             print(PREFIX .. "StaticPopup unavailable.")
         end
+    elseif cmd == "version" then
+        print(PREFIX .. ("version %s"):format(tostring(KCM.VERSION or "?")))
     elseif cmd == "dump" then
         dumpDispatch(rest)
     else
