@@ -285,14 +285,14 @@ function S.Unblock(catKey, itemID, specKey)
     return false
 end
 
--- Add a user-supplied itemID to the candidate set. Also clears a blocklist
--- entry if present so the add is always visible. Returns true on new entry.
--- Spells are seed-only; the Options UI validates against GetItemInfoInstant
--- so it can't reach here with a negative sentinel, but guard anyway.
+-- Add a user-supplied itemID (or spell sentinel via KCM.ID.AsSpell) to the
+-- candidate set. Also clears a blocklist entry if present so the add is
+-- always visible. Returns true on new entry. The bucket tables are keyed by
+-- opaque numeric IDs, so a negative (spell) key works identically to a
+-- positive (item) one through the rest of the pipeline.
 function S.AddItem(catKey, itemID, specKey)
     local bucket = S.GetBucket(catKey, specKey)
     if not bucket or not itemID then return false end
-    if KCM.ID and KCM.ID.IsSpell(itemID) then return false end
     bucket.blocked[itemID] = nil
     if bucket.added[itemID] then return false end
     bucket.added[itemID] = true

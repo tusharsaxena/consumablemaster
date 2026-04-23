@@ -61,6 +61,46 @@ end
 -- change fans out to every spec-aware category list.
 O._viewedSpec = O._viewedSpec or nil
 
+-- Per-category "Add by ID" kind selector state. Not persisted — every
+-- session opens on Item for each category, which is the common case.
+-- Keys are catKey strings; values are "ITEM" or "SPELL".
+O._addKind = O._addKind or {}
+
+local ADD_KIND_OPTIONS = { ITEM = "Item", SPELL = "Spell" }
+local ADD_KIND_SORTING = { "ITEM", "SPELL" }
+
+-- Lookup helpers that span the Midnight C_Spell / legacy GetSpellInfo split
+-- and the multi-return shape of C_Item.GetItemInfo. Both return nil when the
+-- ID isn't resolvable (unknown spell, uncached item on first call), which
+-- the validator treats as a hard fail for spells and a soft fallback for
+-- items (GetItemInfoInstant still validates the ID even when the name isn't
+-- cached yet).
+local function spellNameByID(id)
+    if not id then return nil end
+    if C_Spell and C_Spell.GetSpellName then
+        local n = C_Spell.GetSpellName(id)
+        if n and n ~= "" then return n end
+    end
+    if C_Spell and C_Spell.GetSpellInfo then
+        local info = C_Spell.GetSpellInfo(id)
+        if info and info.name and info.name ~= "" then return info.name end
+    end
+    if GetSpellInfo then
+        local n = GetSpellInfo(id)
+        if n and n ~= "" then return n end
+    end
+    return nil
+end
+
+local function itemNameByID(id)
+    if not id then return nil end
+    if C_Item and C_Item.GetItemInfo then
+        local name = C_Item.GetItemInfo(id)
+        if name and name ~= "" then return name end
+    end
+    return nil
+end
+
 local function resolveViewedSpec()
     if O._viewedSpec then return O._viewedSpec end
     local cur = currentSpecKey()
@@ -448,30 +488,69 @@ local function buildCategoryArgs(catKey)
     }
 
     -- Add-by-id --------------------------------------------------
+    -- Two widgets on one row: a kind selector (Item / Spell, width 0.5) and
+    -- the ID input (width 1.5). The kind drives validation (itemID via
+    -- GetItemInfoInstant, spellID via spellNameByID), the confirm message
+    -- shown before commit, and whether `set` converts the number into a
+    -- spell sentinel via KCM.ID.AsSpell before handing it to Selector.
     args.addHeader = {
         type = "header",
         order = 10,
-        name = "Add item by ID",
+        name = "Add item or spell by ID",
         dialogControl = "KCMHeading",
     }
-    args.addInput  = {
+    args.addKind = {
+        type    = "select",
+        order   = 11,
+        name    = "Type",
+        desc    = "Choose whether the ID you're entering belongs to an item "
+               .. "(default — anything in bags) or a spell (class abilities "
+               .. "like Recuperate).",
+        values  = ADD_KIND_OPTIONS,
+        sorting = ADD_KIND_SORTING,
+        width   = 0.5,
+        get     = function() return O._addKind[catKey] or "ITEM" end,
+        set     = function(_, val)
+            O._addKind[catKey] = val
+            if O.Refresh then O.Refresh() end
+        end,
+    }
+    args.addInput = {
         type  = "input",
-        order = 11,
-        name  = "Item ID",
-        desc  = "Enter an itemID to add to this category (e.g. 241304). "
-             .. "Auto-discovery already handles anything in your bags; use "
-             .. "this to seed something you don't currently carry.",
-        width = "full",
+        order = 12,
+        name  = "ID",
+        desc  = "Enter an itemID or spellID to add to this category. Pick "
+             .. "the matching type on the left. Auto-discovery already "
+             .. "handles items in your bags; use this to seed something "
+             .. "you don't currently carry, or any castable spell.",
+        width = 1.5,
         get   = function() return "" end,
         validate = function(_, val)
             if val == "" then return true end
             local id = tonumber(val)
             if not id then return "Not a number." end
-            if C_Item and C_Item.GetItemInfoInstant then
-                local name = C_Item.GetItemInfoInstant(id)
-                if not name then return "Unknown itemID." end
+            if id <= 0 then return "Must be a positive ID." end
+            local kind = O._addKind[catKey] or "ITEM"
+            if kind == "SPELL" then
+                if not spellNameByID(id) then return "Unknown spellID." end
+            else
+                if C_Item and C_Item.GetItemInfoInstant then
+                    local name = C_Item.GetItemInfoInstant(id)
+                    if not name then return "Unknown itemID." end
+                end
             end
             return true
+        end,
+        confirm = function(_, val)
+            local id = tonumber(val)
+            if not id then return false end
+            local kind = O._addKind[catKey] or "ITEM"
+            if kind == "SPELL" then
+                local name = spellNameByID(id) or ("Spell #" .. id)
+                return ("Add spell \"%s\" (ID %d) to %s?"):format(name, id, cat.displayName)
+            end
+            local name = itemNameByID(id) or ("Item #" .. id)
+            return ("Add item \"%s\" (ID %d) to %s?"):format(name, id, cat.displayName)
         end,
         set = function(_, val)
             local id = tonumber(val)
@@ -480,8 +559,10 @@ local function buildCategoryArgs(catKey)
                 print("|cffff8800[KCM]|r spec-aware category: no active spec — can't add.")
                 return
             end
+            local kind = O._addKind[catKey] or "ITEM"
+            local storedID = (kind == "SPELL") and KCM.ID.AsSpell(id) or id
             local changed = KCM.Selector and KCM.Selector.AddItem
-                and KCM.Selector.AddItem(catKey, id, specKey)
+                and KCM.Selector.AddItem(catKey, storedID, specKey)
             if changed then afterMutation("options_add_item") end
         end,
     }
