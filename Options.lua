@@ -1,7 +1,7 @@
 -- Options.lua — AceConfig-driven settings panel.
 --
 -- Registered in Core:OnInitialize via KCM.Options.Register(). Shows up in
--- Blizzard's ESC → Options → AddOns list as "Ka0s Consumable Master". The
+-- Blizzard's ESC → Options → AddOns list as "Consumable Master". The
 -- option table is built lazily on each open/refresh by KCM.Options.Build,
 -- so any live mutation to KCM.db.profile / Selector state renders
 -- immediately the next time NotifyChange fires.
@@ -24,7 +24,11 @@ local KCM = _G.KCM
 KCM.Options = KCM.Options or {}
 local O = KCM.Options
 
-local PANEL_TITLE = "Ka0s Consumable Master"
+-- Shown as the category label in Blizzard's Settings panel and as the
+-- root group name in the AceConfig tree. Shortened to "Consumable Master"
+-- (the addon itself keeps the "Ka0s Consumable Master" identity in the
+-- TOC and in chat output).
+local PANEL_TITLE = "Consumable Master"
 local REGISTRY_KEY = "ConsumableMaster"
 
 -- ---------------------------------------------------------------------------
