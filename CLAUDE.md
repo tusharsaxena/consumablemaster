@@ -24,6 +24,8 @@ Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the module map and pipeline; [docs
 
 **Reset is centralized.** `KCM.ResetAllToDefaults(reason)` in `Core.lua` wipes + resyncs. Both the Options panel "Reset all priorities" button and `/kcm reset`'s StaticPopup delegate to it. Don't add a third reset path.
 
+**Priority-list entries are opaque numeric IDs.** Positive numbers are itemIDs; negative numbers are spell-sentinels whose absolute value is the spellID. Seed files compose spell entries via `KCM.ID.AsSpell(spellID)` (see `Core.lua`). The rest of the pipeline — Selector buckets, pins, blocklist, Ranker — treats them as opaque numeric keys, so a negative key works identically to a positive one through every table. Only `MacroManager`, `Ranker.Score`'s spell shortcut, and the UI fork on the sign (`KCM.ID.IsSpell` / `IsItem`) to render `/use item:<id>` vs `/cast <spellname>`. `Selector.MarkDiscovered` rejects spells since bag discovery can't find them; `Selector.AddItem` accepts both so the Options panel's Item/Spell picker can seed either.
+
 ---
 
 ## Load order
@@ -101,10 +103,11 @@ If you can only reason about the change from code and cannot test it in WoW, say
 1. Append a row to `KCM.Categories.LIST` in `defaults/Categories.lua` (set `specAware` correctly).
 2. Add a matcher in `Classifier.lua`'s `matchers` table.
 3. Add a scorer in `Ranker.lua`'s `scorers` table.
-4. Create `defaults/Defaults_<NewCat>.lua` that writes `KCM.SEED.<KEY>`.
-5. Add the file to `ConsumableMaster.toc` in dependency order.
-6. Update the `dbDefaults.profile.categories` table in `Core.lua` so AceDB creates the bucket.
-7. Options panel picks the category up automatically from `Categories.LIST`.
+4. Add a branch in `Ranker.Explain` for the score-button tooltip — the per-row info button in Options renders `{label, value, note?}` rows from here, so mirror the scorer's additive terms.
+5. Create `defaults/Defaults_<NewCat>.lua` that writes `KCM.SEED.<KEY>`.
+6. Add the file to `ConsumableMaster.toc` in dependency order.
+7. Update the `dbDefaults.profile.categories` table in `Core.lua` so AceDB creates the bucket.
+8. Options panel picks the category up automatically from `Categories.LIST`.
 
 ### Refresh seed item IDs after a patch
 
@@ -140,17 +143,24 @@ Run `/kcm dump item <id>` to see the subType + parsed tooltip. If subType is wro
 
 ## File index
 
-- Entry + pipeline + events: `Core.lua`
+- Entry + pipeline + events + `KCM.ID` sentinel helpers: `Core.lua`
 - DB schema: `Core.lua` → `KCM.dbDefaults`
 - Category metadata: `defaults/Categories.lua`
-- Seed items: `defaults/Defaults_*.lua`
+- Seed items / spells: `defaults/Defaults_*.lua`
 - Spec identity + stat priority: `SpecHelper.lua`
-- Tooltip parsing: `TooltipCache.lua`
+- Tooltip parsing (incl. `healOverSec` / `manaOverSec` for HOT pots): `TooltipCache.lua`
 - Bag enumeration: `BagScanner.lua`
 - Category matching: `Classifier.lua`
-- Per-category scorers: `Ranker.lua`
+- Per-category scorers + `Ranker.Explain` / `Ranker.BuildContext`: `Ranker.lua`
 - Candidate set + effective priority + DB mutators: `Selector.lua`
-- The only protected-API caller: `MacroManager.lua`
+- The only protected-API caller (items + spells): `MacroManager.lua`
 - Settings panel: `Options.lua`
 - `/kcm` dispatcher + reset popup: `SlashCommands.lua`
 - Debug helper: `Debug.lua`
+- AceGUI custom widgets (referenced from `Options.lua` via `dialogControl`):
+  - Row of [status] [item icon] [name] [pick star]: `KCMItemRow.lua`
+  - Gold-hover icon button used for ↑ / ↓ / × and the add-by-ID row: `KCMIconButton.lua`
+  - Info "i" button that shows a per-item score breakdown on hover: `KCMScoreButton.lua`
+  - Section heading styled like Blizzard's: `KCMHeading.lua`
+  - Page title styled like Blizzard's: `KCMTitle.lua`
+  - Draggable macro icon (places `KCM_*` macro on an action bar): `KCMMacroDragIcon.lua`

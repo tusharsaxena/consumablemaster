@@ -11,7 +11,7 @@ An auto-managed consumable-macro addon for **World of Warcraft: Midnight** (Reta
 
 ## What it does
 
-Every time you loot a better food, swap spec, reload, or leave combat, Ka0s Consumable Master re-runs its pipeline and rewrites each macro's body to `#showtooltip / /use item:<best>`. The macros live in the **account-wide** pool (identified by name — the addon never hardcodes a slot), so they're shared across every character, survive slot reordering, and coexist with every other macro in your list.
+Every time you loot a better food, swap spec, reload, or leave combat, Ka0s Consumable Master re-runs its pipeline and rewrites each macro's body — either `#showtooltip / /use item:<best>` for items or `#showtooltip / /cast <spell>` for spell entries (class abilities like Recuperate). The macros live in the **account-wide** pool (identified by name — the addon never hardcodes a slot), so they're shared across every character, survive slot reordering, and coexist with every other macro in your list.
 
 | # | Category                  | Macro           | Spec-aware? |
 |---|---------------------------|-----------------|-------------|
@@ -24,8 +24,6 @@ Every time you loot a better food, swap spec, reload, or leave combat, Ka0s Cons
 | 7 | Combat potion (throughput)| `KCM_CMBT_POT`  | **Yes**     |
 | 8 | Flask                     | `KCM_FLASK`     | **Yes**     |
 
-Selection is three layers: **shipped seed list ∪ your added items ∪ auto-discovered bag items − your blocklist**, then ranked by tooltip-parsed heal / mana / stat value (spec-aware for the three stat categories), then pin-adjusted if you reorder rows in the settings panel. The first entry you actually own wins; if you own none, the macro prints a friendly `KCM: no X in bags` stub so the slot stays valid.
-
 Macro writes that would land during combat are queued and flushed on `PLAYER_REGEN_ENABLED` — the addon never calls a protected macro API in combat.
 
 ---
@@ -34,7 +32,7 @@ Macro writes that would land during combat are queued and flushed on `PLAYER_REG
 
 1. Install the addon using the Addon Manager of choice, or manually
 2. Launch the game. The addon initializes on login — first `PLAYER_ENTERING_WORLD` scans bags, discovers known items, and writes all eight macros.
-3. Drag the new `KCM_*` macros onto your action bars from the macro UI.
+3. Drag the new `KCM_*` macros onto your action bars from the macro UI (or use the draggable icon at the top of each category page in the settings panel).
 
 | Command              | What it does                                                           |
 |----------------------|------------------------------------------------------------------------|
@@ -43,14 +41,66 @@ Macro writes that would land during combat are queued and flushed on `PLAYER_REG
 | `/kcm resync`        | Force a full rescan: invalidate tooltip cache, re-discover, recompute. |
 | `/kcm reset`         | Confirm-and-reset every priority list and stat override to defaults.   |
 | `/kcm debug`         | Toggle verbose logging.                                                |
-| `/kcm dump <target>` | Inspect internal state (categories, stat priority, bags, item, rank, pick, raw). |
+| `/kcm version`       | Print the addon version.                                               |
+| `/kcm dump <target>` | Inspect internal state. Targets: `categories`, `statpriority`, `bags`, `item <id>`, `pick <catKey>`. |
 
-The settings panel (also reachable via Escape → Options → AddOns → Ka0s Consumable Master) gives you:
+---
 
-- **Per-category priority list** with ↑ / ↓ / X buttons and an **Add item by ID** box.
-- **Spec selector** on the three spec-aware categories (Stat Food, Combat Pot, Flask).
-- **Stat priority editor** (primary stat + ordered secondary stats) for the active or viewed spec.
-- **Reset this category** and a global **Reset all priorities** execute.
+## How picking & ranking works
+
+Every recompute runs this pipeline per category:
+
+1. **Build the candidate set.** Union of three sources, minus the blocklist:
+   - `seed` — the shipped `defaults/Defaults_<CAT>.lua` list. Most entries are itemIDs, but a seed can also include spell entries (Recuperate is top-ranked in Food by default).
+   - `added` — items or spells you manually added via the settings panel.
+   - `discovered` — items auto-scanned from your bags that match the category's classifier rules (bag discovery is item-only; spells are never auto-discovered).
+   - `blocked` — entries you've removed with the × button. Subtracted from the union; auto-discovery won't re-add a blocked item.
+2. **Score every candidate.** A per-category scorer (`Ranker.lua`) reads the parsed tooltip and returns a number; higher is better. Signals per category:
+   - **Food / Drink:** flat heal/mana value + %-based restore (amplified so Midnight %-based food outranks flat tiers) + conjured bonus + ilvl + quality tiebreak.
+   - **HP potion / MP potion:** raw heal/mana value. **Immediate restores always outrank heal-over-time (HOT) pots, unless the HOT's amount beats the best immediate in the set by more than 20%.** Prevents a slightly-bigger HOT from winning over a smaller immediate (e.g. Amani Extract's 265,420 over 20 sec vs Silvermoon Health Potion's 241,303 instant — Silvermoon wins because the HOT isn't 20% bigger).
+   - **Stat Food / Combat Potion / Flask:** weighted sum of the tooltip's stat buffs against the active spec's stat priority. Primary-stat consumables always beat any secondary-stat ones; within secondary, earlier positions weigh more. Wildcard "highest secondary stat" buffs resolve against the spec's top secondary at rank time.
+   - **Healthstone:** hard-coded preference table (modern auto-leveling Healthstone > legacy fallback), + ilvl tiebreak.
+   - **Spell entries:** a fixed score that outranks every item. Spells never compete with items on value — so Recuperate sits above every food by default. You can pin items above a spell if you prefer.
+3. **Merge pins.** When you reorder rows with ↑ / ↓ in the settings panel, the addon writes pins of `{itemID, position}`. Pins override the Ranker order — pinned entries land at their requested position and non-pinned items fill the gaps in score order.
+4. **Walk the final list** for the first entry you actually own. Items check bag counts; spells check `IsPlayerSpell` (class / spec / talent-granted). That first-owned entry becomes the macro body. If you own none, the macro prints a friendly `KCM: no <category>` stub so the slot stays valid.
+
+Hovering the **blue info button** on any row shows the full per-item score breakdown (each contributing signal and a one-line summary of the scoring rule), so you can see exactly why an entry landed where it did.
+
+---
+
+## Settings
+
+All settings live at **Escape → Options → AddOns → Consumable Master** (or `/kcm config`).
+
+### General
+
+- **Debug mode** — toggle verbose chat logging. Equivalent to `/kcm debug`.
+- **Force resync** — invalidate the tooltip cache, rescan bags, rewrite every macro. Equivalent to `/kcm resync`. Blocked in combat.
+- **Reset all priorities** — with confirmation, wipe every added / blocked / pinned entry and every stat-priority override. Seed defaults are restored.
+
+### Stat Priority
+
+One shared page that drives the three spec-aware categories (Stat Food, Combat Potion, Flask).
+
+- **Viewing spec** — selects which spec's stat priority you're editing. Also controls which spec's list shows on the three spec-aware category pages. Specs render with their class icon and human-readable name (e.g. "Shaman — Enhancement"), not raw class/spec IDs.
+- **Primary stat** — the dominant stat for the spec. Primary-stat consumables always beat secondary-stat ones regardless of magnitude.
+- **Secondary stat #1 … #4** — ordered preference for secondary stats (Crit / Haste / Mastery / Versatility). Position 1 weighs most. Leave slots as `(none)` to truncate the list — a truncated list ranks unlisted secondaries at 0.
+- **Reset stat priority** — drop the user override for the viewed spec. Ranker falls back to the seed default (`defaults/Defaults_StatPriority.lua`) or, if none exists, the class-primary fallback.
+
+### Per-category pages
+
+Each of the eight categories has its own page in the tab list. Spec-aware pages also show the viewed spec at the top.
+
+- **Draggable macro icon** — the small icon below the title. Drag it onto an action bar to place the `KCM_*` macro.
+- **Add item or spell by ID**
+  - **Type** dropdown — choose `Item` or `Spell`.
+  - **ID** input — validates against `C_Item.GetItemInfoInstant` (items) or `C_Spell.GetSpellName` (spells). On submit a confirmation dialog shows the resolved name before committing.
+- **Priority list** — one row per candidate, ordered by effective rank:
+  - Status glyphs: ready-check green (owned in bags / spell known), red (not owned), yellow star (currently picked by the macro).
+  - **Blue info button** — hover for the per-item score breakdown.
+  - **↑ / ↓** — reorder (writes a pin, overrides the Ranker score).
+  - **×** — remove the entry. Also blocks it so auto-discovery won't re-add it.
+- **Reset category** — with confirmation, clears this category's added / blocked / pinned entries (the viewed spec's bucket only, for spec-aware categories). Discovered items (from bag scans) are preserved.
 
 ---
 
