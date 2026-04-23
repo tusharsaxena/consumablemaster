@@ -613,10 +613,16 @@ local function buildCategoryArgs(catKey)
     end
 
     -- Per-category reset -----------------------------------------
-    args.resetDivider = { type = "header", order = 201, name = "" }
+    -- Order numbers must sit above the highest possible row order. Rows use
+    -- (30 + i * 10), so a list of N items reaches 30 + N*10 + 3. A constant
+    -- well above any plausible category size keeps the divider/reset pinned
+    -- at the bottom regardless of list length (Stat Food in particular can
+    -- exceed 17 entries, which is where the old order=201 began appearing
+    -- mid-list).
+    args.resetDivider = { type = "header", order = 10000, name = "" }
     args.reset = {
         type        = "execute",
-        order       = 202,
+        order       = 10001,
         name        = "Reset category",
         desc        = "Clear added/blocked items and pin overrides for this "
                    .. "category" .. (cat.specAware and " (viewed spec only)" or "")

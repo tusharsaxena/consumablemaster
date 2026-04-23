@@ -8,9 +8,10 @@
 - ✅ In the General tab: move "Force resync" to the second line and "Reset all priorities" to the third line. Remove the version number.
 - ✅ Add a `/kcm version` slash command that prints the addon version.
 - ✅ Change the delete button glyph from a red X (collides with the "not in bags" icon) to a different glyph — i would suggest a red circle with a diagonal line through it (no-entry sign).
-- ⬜ Check the Stat Food section — formatting looks off. The separator and reset category and stat priority sections appear midway through the list - the list is long. screenshot here: https://i.ibb.co/rK5MpPys/Untitled.png and https://i.ibb.co/VcQPT7NG/image.png
-- ⬜ Check default seed items again once - remove classic fallbacks and use items from midnight silvermoon innkeeper as seed items - ask the user for which items should be a part of the seed list.
-- ⬜ Add stat weights alongside stat priorities for primary and secondary stats to better improve ranking
+- ✅ Check the Stat Food section — formatting looks off. The separator and reset category and stat priority sections appear midway through the list - the list is long. screenshot here: https://i.ibb.co/rK5MpPys/Untitled.png and https://i.ibb.co/VcQPT7NG/image.png
+- ✅ Check default seed items again once - remove classic fallbacks and use items from midnight silvermoon innkeeper as seed items - ask the user for which items should be a part of the seed list.
+- ✅ relook into the .md files which has instructions on how to build the seed lists
 - ⬜ Add conjured food and recuperate to the seed list. Recuperate (spell id: 1231411) should be the top ranked item in food in the seed list, unless manually overriden (removed and order dropped) by the user. Conjured food (Conjured Mana Bun, item id 113509) should by default be the second item in the food category and top item in the drink categry; unless deleted or order changed by the user
+- ⬜ for every item, add a checkbox to disable a specific item from being picked by the macro. this will allow the user to preserve ordering without deleting the item altogether
 - ⬜ simplify the dump commands
-- ⬜ relook into the .md files which has instructions on how to build the seed lists
+- ⬜ Add stat weights alongside stat priorities for primary and secondary stats to better improve ranking

@@ -41,11 +41,18 @@ are preserved independently.
 
 ## Sources
 
+- **In-game vendors** — primary source for FOOD and DRINK seeds (Silvermoon
+  innkeeper, Midnight 12.0). Use the `/run` snippet in
+  `docs/REFRESH_ITEMS.md` → "In-game name dump" to copy `id = name` pairs out
+  of the client.
 - **archon.gg** — `Defaults_StatPriority.lua` (Mythic+ "this week" ranking, last
   refreshed 2026-04-21). See the comment header inside that file for the exact
   URL pattern and refresh procedure.
 - **Method.gg / Icy Veins** — cross-checks for `Defaults_StatPriority.lua` and
-  source for the consumable item-ID seed lists (Midnight 12.0, April 2026).
-- **Wowhead** — item database entries for name / quality / tooltip verification.
+  starting list for the consumable item-ID seeds (Midnight 12.0). Always
+  verify each ID in-game before committing.
+- **Wowhead / wowdb** — manual browser only; both 403 to automated fetches.
+  Useful when looking up an item name or stat amount by hand, but not
+  scriptable. See `docs/REFRESH_ITEMS.md` for the full sourcing playbook.
 
 All IDs should be treated as data, not code — corrections welcome.

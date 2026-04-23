@@ -5,13 +5,19 @@
 -- Lily, Sanguithorn, Tranquility Bloom). They may grant profession-stat
 -- buffs rather than pure mana regen — auto-discovery sorts them out by
 -- tooltip content. Conjured Refreshment (mage) auto-discovers from bags
--- at runtime. This seed keeps a classic conjured fallback for first-boot.
+-- at runtime. The seed below is the Silvermoon innkeeper's drink stock so
+-- the macro is usable before the first bag scan.
 --
--- See docs/REFRESH_ITEMS.md for the refresh procedure.
+-- Source: in-game Silvermoon innkeeper vendor stock (Midnight 12.0).
+-- Last refresh: 2026-04-23. See docs/REFRESH_ITEMS.md to re-run.
 
 local KCM = _G.KCM
 KCM.SEED = KCM.SEED or {}
 
 KCM.SEED.DRINK = {
-    159,     -- Refreshing Spring Water (classic vendor fallback)
+    260264,  -- Quel'Danas Rations
+    260261,  -- Bloom Nectar
+    260260,  -- Springrunner Sparkling
+    260259,  -- Everspring Water
+    260258,  -- Purified Cordial
 }

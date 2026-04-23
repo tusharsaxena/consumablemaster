@@ -13,35 +13,59 @@ an expected item isn't showing up.
 
 ## Sources (in order of preference)
 
-1. **Method.gg — "List of all Midnight Consumables, Enchants and Gems"**
+1. **In-game vendors and dump commands.** This is the primary source for
+   Midnight seed lists. Walk the relevant vendor (e.g. the Silvermoon
+   innkeeper for FOOD/DRINK), note the item IDs, and run
+   `/kcm dump item <id>` to confirm subType/classID/classified bucket.
+   For batch name lookups paste the snippet under "In-game name dump"
+   below — it pops a copyable edit box with `id = name` for any list of
+   IDs you care about. The Silvermoon innkeeper is the canonical source
+   for `FOOD` and `DRINK` in Midnight (vendor IDs 260254–260264).
+
+2. **Method.gg — "List of all Midnight Consumables, Enchants and Gems"**
    `https://www.method.gg/guides/list-of-all-midnight-consumables-enchants-and-gems`
    Single page covering combat potions, healing/mana potions, utility
    potions, flasks/phials, stat food, and feasts with itemIDs and stat
-   tags. Easiest to ingest — most of the seed data comes from here.
+   tags. Useful as a starting list to seed the working set, then verify
+   in game. Fetches reliably via WebFetch.
 
-2. **Warcraft Wiki — profession recipe pages**
+3. **Warcraft Wiki — profession recipe pages**
    `https://warcraft.wiki.gg/wiki/Midnight_alchemy_recipes`
    `https://warcraft.wiki.gg/wiki/Midnight_cooking_recipes`
    Recipe-result names and categorization. Useful to cross-check what
    Method.gg lists and to catch items Method.gg omits.
 
-3. **Wowhead item list pages** (403s on direct fetch — see below)
-   `https://www.wowhead.com/items/consumables/potions?filter=166:128;12:3;0:0`
-   `https://www.wowhead.com/items/consumables/flasks?filter=166:128;12:3;0:0`
-   `https://www.wowhead.com/items/consumables/food-and-drinks?filter=166:128;12:3;0:0`
-   Filter is Midnight (patch 12.0.x) with quality ≥ rare. Wowhead blocks
-   automated fetches — open these in a browser and copy the list.
+4. **Wowhead / wowdb — manual browser only.** Both sites front their
+   pages with Cloudflare and return HTTP 403 to WebFetch / curl. Open in
+   a real browser if you need the item DB; do NOT waste time scripting
+   against them.
 
-4. **In-game verification**
-   Roll or vendor an item, load it into a bag, `/reload`, and run
-   `/kcm dump item <itemID>`. The output prints `type`, `subType`,
-   `classID`, `subClassID`, the `classified:` category, and the parsed
-   TooltipCache entry — everything needed to confirm the seed guess.
+   Useful URLs (for browser):
+   - `https://www.wowhead.com/items/consumables/potions?filter=166:128;12:3;0:0`
+   - `https://www.wowhead.com/items/consumables/flasks?filter=166:128;12:3;0:0`
+   - `https://www.wowhead.com/items/consumables/food-and-drinks?filter=166:128;12:3;0:0`
+
+   Filter is Midnight (patch 12.0.x) with quality ≥ rare.
+
+## In-game name dump
+
+Paste this single `/run` line in chat with whatever IDs you need. It
+preloads each item, then opens a copyable edit box:
+
+```
+/run StaticPopupDialogs.KCMDUMP={text="Copy:",button1="OK",hasEditBox=true,editBoxWidth=400,OnShow=function(s)s.editBox:SetText(_G.KCM_DUMP)s.editBox:HighlightText()end,timeout=0,whileDead=true,hideOnEscape=true} local ids={260254,260255,260256,260257,260258,260259,260260,260261,260262,260263,260264} local t={} for _,id in ipairs(ids) do C_Item.RequestLoadItemDataByID(id) table.insert(t,id.."="..(C_Item.GetItemNameByID(id) or "?")) end _G.KCM_DUMP=table.concat(t,"; ") StaticPopup_Show("KCMDUMP")
+```
+
+Replace the `ids = { ... }` list with whatever IDs you need to label.
+If a line comes back as `<id>=?` the item wasn't cached yet — run the
+command a second time and the entries will fill in.
 
 ## Procedure
 
-1. **Collect candidate item IDs** from Method.gg and the Wiki into one
-   working list, grouped by seed file (HP_POT, MP_POT, CMBT_POT, FLASK,
+1. **Collect candidate item IDs.** For FOOD and DRINK, walk the
+   Silvermoon innkeeper in-game and grab their stock. For everything
+   else, start from Method.gg and the Wiki and verify in-game. Group
+   the working list by seed file (HP_POT, MP_POT, CMBT_POT, FLASK,
    STAT_FOOD, FOOD, DRINK). Exclude HS — healthstone IDs are a fixed
    two-entry whitelist in `Defaults_Healthstone.lua`.
 
@@ -102,11 +126,11 @@ an expected item isn't showing up.
 - **"Name fabrication" trap.** Do NOT guess item names from itemIDs.
   The prior seed had ~30 invented stat-food names ("Sizzling Steak
   Sandwich", etc.) that didn't match any real item. Always cross-check
-  the name against Method.gg or `/kcm dump item` output.
+  with the in-game name dump snippet, `/kcm dump item`, or Method.gg.
 
-- **Filter URL blocking.** Wowhead's `/items/consumables/*` list URLs
-  return HTTP 403 to most automated fetchers. The Method.gg list is a
-  rendered HTML page and fetches reliably.
+- **Cloudflare blocking on item DBs.** Both Wowhead and wowdb sit behind
+  Cloudflare and return HTTP 403 to WebFetch/curl — open them in a real
+  browser if needed. Method.gg renders server-side and fetches reliably.
 
 - **Spec-aware seed is a flat list.** `CMBT_POT`, `FLASK`, and
   `STAT_FOOD` are spec-aware at runtime via `bySpec[specKey]`, but
