@@ -60,7 +60,7 @@ local F = KCM.Foo
 ## Debug and diagnostics
 
 - Toggle verbose logs: `/kcm debug`. Internally this flips `KCM.db.profile.debug`. Call `KCM.Debug.Print(fmt, ...)` — it early-returns when off, so unconditional calls are safe.
-- Dump internals: `/kcm dump <target>` where targets are `categories`, `statpriority`, `bags`, `item <id>`, `raw <id>`, `rank <catKey>`, `pick <catKey>`. `DUMP_TARGETS` in `SlashCommands.lua` is a single source of truth — add a row and it appears in help automatically.
+- Dump internals: `/kcm dump <target>` where targets are `categories`, `statpriority`, `bags`, `item <id>`, `pick <catKey>`. `DUMP_TARGETS` in `SlashCommands.lua` is a single source of truth — add a row and it appears in help automatically. `item` shows parsed tooltip + raw lines (pattern-debugging view appended); `pick` shows the effective priority list with per-entry ranker scores and the owned-item pick.
 - Force a resync: `/kcm resync` — invalidates TooltipCache, re-runs discovery, runs a direct (non-coalesced) Recompute.
 
 `Core.lua` has a commented-out per-category recompute log. Uncomment only for short debugging sessions; it fires N × M times during login (N categories × M `GET_ITEM_INFO_RECEIVED` events) and floods chat.
@@ -73,16 +73,14 @@ local F = KCM.Foo
 
 - Load the addon, log in, verify the eight `KCM_*` macros exist.
 - Watch `/kcm debug` output during login, bag changes, spec swaps, combat enter/leave.
-- Use `/kcm dump pick <catKey>` to verify the effective priority list and the owned pick.
-- Use `/kcm dump rank <catKey>` to verify Ranker scoring against seed items.
-- Use `/kcm dump raw <itemID>` to pattern-debug tooltip parsing.
+- Use `/kcm dump pick <catKey>` to verify the effective priority list (includes per-entry ranker scores) and the owned pick.
+- Use `/kcm dump item <itemID>` to pattern-debug tooltip parsing — the command prints the parsed tooltip fields plus the raw tooltip lines underneath.
 
 When changing a scorer, classifier, or tooltip pattern, smoke test:
 
 1. `/kcm resync`
-2. `/kcm dump rank <affected catKey>` — check the order.
-3. `/kcm dump pick <affected catKey>` — check the winner.
-4. Check the actual macro in the macro UI.
+2. `/kcm dump pick <affected catKey>` — inspect scores (order + why) and the winner.
+3. Check the actual macro in the macro UI.
 
 If you can only reason about the change from code and cannot test it in WoW, say so explicitly — don't claim it works.
 

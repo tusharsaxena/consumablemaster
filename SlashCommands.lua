@@ -106,7 +106,7 @@ DUMP_TARGETS.bags = {
 }
 
 DUMP_TARGETS.item = {
-    summary = "parsed tooltip for <itemID> (e.g. /kcm dump item 241304)",
+    summary = "parsed tooltip + raw lines for <itemID> (e.g. /kcm dump item 241304)",
     usage   = "item <itemID>",
     run = function(arg)
         local id = tonumber(arg or "")
@@ -157,53 +157,45 @@ DUMP_TARGETS.item = {
         if DevTools_Dump then
             DevTools_Dump(entry)
         end
-    end,
-}
 
-DUMP_TARGETS.raw = {
-    summary = "raw tooltip lines for <itemID> (for pattern debugging)",
-    usage   = "raw <itemID>",
-    run = function(arg)
-        local id = tonumber(arg or "")
-        if not id then
-            print(PREFIX .. "usage: /kcm dump raw <itemID>")
-            return
-        end
-        if not (C_TooltipInfo and C_TooltipInfo.GetItemByID) then
-            print(PREFIX .. "C_TooltipInfo.GetItemByID unavailable.")
-            return
-        end
-        local data = C_TooltipInfo.GetItemByID(id)
-        if not data or not data.lines then
-            print(PREFIX .. ("item %d: no tooltip data yet (try again shortly)."):format(id))
-            return
-        end
-        print(PREFIX .. ("raw tooltip lines for item %d (%d lines):"):format(id, #data.lines))
-        for i, line in ipairs(data.lines) do
-            local left = line.leftText or ""
-            local right = line.rightText or ""
-            if right ~= "" then
-                print(("  [%2d] L=%q  R=%q"):format(i, left, right))
-            else
-                print(("  [%2d] %q"):format(i, left))
+        -- Raw tooltip lines appended after parsed output — the pattern-
+        -- debugging view. Skipped silently when C_TooltipInfo or the
+        -- tooltip data isn't available (tooltip will usually be available
+        -- since TooltipCache.Get above already fetched it).
+        if C_TooltipInfo and C_TooltipInfo.GetItemByID then
+            local data = C_TooltipInfo.GetItemByID(id)
+            if data and data.lines and #data.lines > 0 then
+                print(("  raw tooltip lines (%d):"):format(#data.lines))
+                for i, line in ipairs(data.lines) do
+                    local left = line.leftText or ""
+                    local right = line.rightText or ""
+                    if right ~= "" then
+                        print(("    [%2d] L=%q  R=%q"):format(i, left, right))
+                    else
+                        print(("    [%2d] %q"):format(i, left))
+                    end
+                end
             end
         end
     end,
 }
 
 -- ---------------------------------------------------------------------------
--- /kcm dump rank <catKey> — M4 debug helper.
--- Scores every seed item for the given category against the current spec's
--- stat priority (for spec-aware categories) and prints the sorted list.
+-- /kcm dump pick <catKey>
+-- Runs the full selector pipeline (candidates → rank → pin merge → first
+-- owned) and prints the effective priority list with ranker scores, owned
+-- flags, and the pick highlight. Folds in what used to be /kcm dump rank —
+-- since the ranker score is now shown inline, there's no need for a
+-- separate seed-only ranking command.
 -- ---------------------------------------------------------------------------
 
-DUMP_TARGETS.rank = {
-    summary = "rank seed items for a category (e.g. /kcm dump rank flask)",
-    usage   = "rank <catKey>",
+DUMP_TARGETS.pick = {
+    summary = "effective priority (with scores) + best-owned pick for a category",
+    usage   = "pick <catKey>",
     run = function(arg)
         arg = (arg or ""):match("^(%S*)") or ""
         if arg == "" then
-            print(PREFIX .. "usage: /kcm dump rank <catKey>  (e.g. flask, hp_pot, stat_food)")
+            print(PREFIX .. "usage: /kcm dump pick <catKey>  (e.g. flask, hp_pot, stat_food)")
             if KCM.Categories and KCM.Categories.LIST then
                 local keys = {}
                 for _, cat in ipairs(KCM.Categories.LIST) do
@@ -211,82 +203,6 @@ DUMP_TARGETS.rank = {
                 end
                 print("  known: " .. table.concat(keys, ", "))
             end
-            return
-        end
-
-        local catKey = arg:upper()
-        local cat = KCM.Categories and KCM.Categories.Get and KCM.Categories.Get(catKey)
-        if not cat then
-            print(PREFIX .. "unknown category: |cffffff00" .. arg .. "|r")
-            return
-        end
-
-        if not (KCM.Ranker and KCM.Ranker.SortCandidates) then
-            print(PREFIX .. "KCM.Ranker not loaded.")
-            return
-        end
-
-        local seed = KCM.SEED and KCM.SEED[catKey] or {}
-        if #seed == 0 then
-            print(PREFIX .. ("no seed items for %s"):format(catKey))
-            return
-        end
-
-        local ctx
-        if cat.specAware and KCM.SpecHelper then
-            local _, _, specKey, specName = KCM.SpecHelper.GetCurrent()
-            if specKey then
-                ctx = { specPriority = KCM.SpecHelper.GetStatPriority(specKey) }
-                print(PREFIX .. ("ranking %s for spec %s (%s)"):format(
-                    catKey, specName or "?", specKey))
-                print(("  primary=%s  secondary=%s"):format(
-                    tostring(ctx.specPriority.primary),
-                    table.concat(ctx.specPriority.secondary or {}, ">")))
-            else
-                print(PREFIX .. ("ranking %s (no active spec — priority will be empty)"):format(catKey))
-            end
-        else
-            print(PREFIX .. ("ranking %s"):format(catKey))
-        end
-
-        local _, rows = KCM.Ranker.SortCandidates(catKey, seed, ctx)
-        for i, row in ipairs(rows) do
-            local id = row.id
-            local name, tag, displayID
-            if KCM.ID and KCM.ID.IsSpell(id) then
-                local sid = KCM.ID.SpellID(id)
-                displayID = ("spell:%d"):format(sid or 0)
-                if C_Spell and C_Spell.GetSpellName then
-                    name = C_Spell.GetSpellName(sid)
-                end
-                name = name or "?"
-                tag = ""
-            else
-                displayID = tostring(id)
-                local tt = KCM.TooltipCache and KCM.TooltipCache.Get(id)
-                name = (tt and tt.itemName)
-                    or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
-                    or "?"
-                tag = (tt and tt.pending) and "  |cffff8800(pending)|r" or ""
-            end
-            print(("  %2d. %8.1f  %s  %s%s"):format(i, row.score, displayID, name, tag))
-        end
-    end,
-}
-
--- ---------------------------------------------------------------------------
--- /kcm dump pick <catKey> — M5 debug helper.
--- Runs the full selector pipeline (candidates → rank → pin merge → first
--- owned) and prints the resulting priority list plus the pick.
--- ---------------------------------------------------------------------------
-
-DUMP_TARGETS.pick = {
-    summary = "effective priority + best-owned pick for a category",
-    usage   = "pick <catKey>",
-    run = function(arg)
-        arg = (arg or ""):match("^(%S*)") or ""
-        if arg == "" then
-            print(PREFIX .. "usage: /kcm dump pick <catKey>")
             return
         end
         local catKey = arg:upper()
@@ -300,10 +216,31 @@ DUMP_TARGETS.pick = {
             return
         end
 
+        -- Build the ranker ctx once; the list is pre-sorted via pins+rank
+        -- inside Selector, but we still want per-row raw scores so the user
+        -- can see WHY an entry landed where it did (useful when a pin has
+        -- overridden the natural ranker order).
+        local ctx
+        if cat.specAware and KCM.SpecHelper then
+            local _, _, specKey, specName = KCM.SpecHelper.GetCurrent()
+            if specKey then
+                ctx = { specPriority = KCM.SpecHelper.GetStatPriority(specKey) }
+                print(PREFIX .. ("%s for spec %s (%s)"):format(
+                    catKey, specName or "?", specKey))
+                print(("  primary=%s  secondary=%s"):format(
+                    tostring(ctx.specPriority.primary),
+                    table.concat(ctx.specPriority.secondary or {}, ">")))
+            else
+                print(PREFIX .. ("%s (no active spec)"):format(catKey))
+            end
+        else
+            print(PREFIX .. ("%s"):format(catKey))
+        end
+
         local priority = KCM.Selector.GetEffectivePriority(catKey)
         local pick = KCM.Selector.PickBestForCategory(catKey)
 
-        print(PREFIX .. ("effective priority for %s (%d entries):"):format(catKey, #priority))
+        print(("  effective priority (%d entries):"):format(#priority))
         for i, id in ipairs(priority) do
             local name, displayID, have
             if KCM.ID and KCM.ID.IsSpell(id) then
@@ -322,9 +259,10 @@ DUMP_TARGETS.pick = {
                     or "?"
                 have = KCM.BagScanner and KCM.BagScanner.HasItem and KCM.BagScanner.HasItem(id) or false
             end
+            local score = (KCM.Ranker and KCM.Ranker.Score and KCM.Ranker.Score(catKey, id, ctx)) or 0
             local haveTag = have and "|cff44ff44[owned]|r" or "|cff888888[---]|r"
             local pickTag = (id == pick) and "  |cffffd100<-- pick|r" or ""
-            print(("  %2d. %s  %s  %s%s"):format(i, haveTag, displayID, name, pickTag))
+            print(("  %2d. %s %8.1f  %s  %s%s"):format(i, haveTag, score, displayID, name, pickTag))
         end
         if not pick then
             print(PREFIX .. "no owned item — macro would show empty-state stub.")
@@ -334,7 +272,7 @@ DUMP_TARGETS.pick = {
 
 -- Ordered keys so help output is stable. Add new dump names here in the
 -- order you want them shown.
-local DUMP_ORDER = { "categories", "statpriority", "bags", "item", "raw", "rank", "pick" }
+local DUMP_ORDER = { "categories", "statpriority", "bags", "item", "pick" }
 
 -- ---------------------------------------------------------------------------
 -- Help printers

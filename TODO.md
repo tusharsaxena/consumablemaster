@@ -12,7 +12,7 @@
 - ✅ Check default seed items again once - remove classic fallbacks and use items from midnight silvermoon innkeeper as seed items - ask the user for which items should be a part of the seed list.
 - ✅ relook into the .md files which has instructions on how to build the seed lists
 - ✅ Add conjured food and recuperate to the seed list. Recuperate (spell id: 1231411) should be the top ranked item in food in the seed list, unless manually overriden (removed and order dropped) by the user. Conjured food (Conjured Mana Bun, item id 113509) should by default be the second item in the food category and top item in the drink categry; unless deleted or order changed by the user
-- ⬜ Simplify the dump commands
+- ✅ Simplify the dump commands
 - ⬜ Rename the entry in the Settings Panel to be Consumable Master instead of Ka0s Consumable Master. The addon name should be retained as Ka0s Consumable Master though. Do not rename the directory name. 
 - ⬜ for every item, add a checkbox to disable a specific item from being picked by the macro. this will allow the user to preserve ordering without deleting the item altogether
 - ⬜ Add the ability to add an item or spell to the macro. Achieve this by having a dropdown to select Item or Spell to the left of the inputbox. Add a validator to check whether a valid itemid or spellid has been entered. 
