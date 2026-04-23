@@ -240,6 +240,13 @@ DUMP_TARGETS.pick = {
         local priority = KCM.Selector.GetEffectivePriority(catKey)
         local pick = KCM.Selector.PickBestForCategory(catKey)
 
+        -- Augment ctx with set-dependent fields (HP_POT / MP_POT need the
+        -- best-immediate amount in the candidate set so per-item scores
+        -- shown here line up with what the effective sort produced).
+        if KCM.Ranker and KCM.Ranker.BuildContext then
+            ctx = KCM.Ranker.BuildContext(catKey, priority, ctx)
+        end
+
         print(("  effective priority (%d entries):"):format(#priority))
         for i, id in ipairs(priority) do
             local name, displayID, have

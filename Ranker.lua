@@ -36,14 +36,17 @@ local CONJURED_BONUS = 1e6
 local PCT_WEIGHT     = 1e4  -- makes %-based food outrank flat-value food
 local QUALITY_WEIGHT = 100
 
--- HP_POT / MP_POT: immediate restores always beat heal-over-time, unless the
--- HOT's total restored exceeds IMMEDIATE_PCT_THRESHOLD of the player's max
--- resource. The bonus is large enough to dominate any plausible raw-value
--- difference (amounts cap at ~1e6, bonus is 1e8) so within "immediate-tier"
--- the raw amount still breaks ties naturally. User pins always win over the
--- Ranker score, so this can be manually overridden per category.
-local IMMEDIATE_POT_BONUS     = 1e8
-local IMMEDIATE_PCT_THRESHOLD = 20
+-- HP_POT / MP_POT: immediate restores always beat heal-over-time (HOT),
+-- unless the HOT's raw amount exceeds the best immediate pot in the same
+-- candidate set by more than HOT_OVER_IMMEDIATE_PCT. The bonus is large
+-- enough to dominate any plausible raw-value difference (amounts cap at
+-- ~1e6, bonus is 1e8) so within "immediate-tier" the raw amount still
+-- breaks ties naturally. The comparison is against the best-immediate
+-- amount among the current candidates, not against max HP, so it stays
+-- independent of player level/gear. User pins still win over the Ranker
+-- score, so this can be manually overridden per category.
+local IMMEDIATE_POT_BONUS       = 1e8
+local HOT_OVER_IMMEDIATE_PCT    = 20
 
 -- Stat-priority weighting. Primary gets a flat floor so any primary-stat
 -- consumable beats any secondary-stat one regardless of magnitude; within
@@ -83,43 +86,64 @@ local function statWeight(stat, specPriority)
     return 0
 end
 
--- Decide whether an HP/MP pot qualifies for the immediate bonus. `kind` is
--- "HP" or "MP"; the function reads the matching tooltip fields and the
--- player's current max HP / max mana. Returns true when either:
---   * the tooltip has no over-time duration (pure immediate restore), or
---   * the total restored exceeds IMMEDIATE_PCT_THRESHOLD of max resource —
---     so a big HOT still gets the bonus.
--- When the player's max resource can't be resolved (0 / nil), the HOT
--- branch falls through to false so immediate pots keep winning by default.
--- Matches the user-stated preference: immediate wins unless the HOT is big.
-local function qualifiesForImmediateBonus(tt, kind)
-    if not tt then return false end
-    local overSec, pct, flat, maxResource
+-- Raw restored amount for an HP/MP pot tooltip. `kind` is "HP" or "MP".
+-- Percent-based entries are not included because they'd require max-HP
+-- normalization that we're deliberately avoiding; in practice retail HP /
+-- MP pots are flat-value, and any pct entries end up in the base score via
+-- other signals (pct contributes nothing here, so they stay penalized).
+local function potAmount(tt, kind)
+    if not tt then return 0 end
     if kind == "HP" then
-        overSec = tt.healOverSec
-        pct     = tt.healPct
-        flat    = (tt.healValueAvg or 0) + (tt.healValue or 0)
-        maxResource = UnitHealthMax and UnitHealthMax("player") or 0
+        return (tt.healValueAvg or 0) + (tt.healValue or 0)
+    end
+    return (tt.manaValueAvg or 0) + (tt.manaValue or 0)
+end
+
+-- Whether a pot restores its resource immediately (no over-time duration).
+local function potIsImmediate(tt, kind)
+    if not tt then return true end
+    if kind == "HP" then
+        if tt.healOverSec then return false end
+        if tt.healPct and tt.pctOverDurationSec then return false end
     else
-        overSec = tt.manaOverSec
-        pct     = tt.manaPct
-        flat    = (tt.manaValueAvg or 0) + (tt.manaValue or 0)
-        maxResource = UnitPowerMax and UnitPowerMax("player", 0) or 0
+        if tt.manaOverSec then return false end
+        if tt.manaPct and tt.pctOverDurationSec then return false end
     end
-    if not overSec and not (pct and tt.pctOverDurationSec) then
-        return true  -- immediate
+    return true
+end
+
+-- Largest raw amount among immediate pots in the candidate set. Used by
+-- HP_POT / MP_POT scorers to gate the immediate bonus on HOT entries: a HOT
+-- only earns the bonus when its amount exceeds this value by more than
+-- HOT_OVER_IMMEDIATE_PCT. When there are no immediate pots in the set the
+-- return is 0, which makes every HOT qualify (nothing to lose against).
+local function bestImmediateAmount(kind, itemIDs)
+    local best = 0
+    for _, id in ipairs(itemIDs or {}) do
+        if not (KCM.ID and KCM.ID.IsSpell(id)) then
+            local tt = KCM.TooltipCache and KCM.TooltipCache.Get(id) or nil
+            if tt and potIsImmediate(tt, kind) then
+                local amt = potAmount(tt, kind)
+                if amt > best then best = amt end
+            end
+        end
     end
-    -- Over-time: evaluate the 20% threshold. Prefer the explicit pct when
-    -- present; derive from flat amount otherwise. "X% every second for Y
-    -- sec" multiplies out to total percent restored.
-    local totalPct
-    if pct then
-        totalPct = (tt.isPctPerSecond and tt.pctOverDurationSec)
-            and (pct * tt.pctOverDurationSec) or pct
-    elseif maxResource > 0 and flat > 0 then
-        totalPct = flat / maxResource * 100
-    end
-    return (totalPct or 0) > IMMEDIATE_PCT_THRESHOLD
+    return best
+end
+
+-- Decide whether an HP/MP pot qualifies for the immediate bonus. Immediate
+-- pots always qualify. HOT pots qualify only when their raw amount exceeds
+-- the best immediate pot in the same set by more than HOT_OVER_IMMEDIATE_PCT
+-- (20% by default). `ctx.bestImmediateAmount` is populated by SortCandidates
+-- before this runs; callers that invoke Score directly should populate it
+-- themselves via R.BuildContext for consistent display.
+local function qualifiesForImmediateBonus(tt, kind, ctx)
+    if not tt then return false end
+    if potIsImmediate(tt, kind) then return true end
+    local bestImmediate = (ctx and ctx.bestImmediateAmount) or 0
+    if bestImmediate <= 0 then return true end
+    local threshold = bestImmediate * (1 + HOT_OVER_IMMEDIATE_PCT / 100)
+    return potAmount(tt, kind) > threshold
 end
 
 -- Shared scoring for stat-aware categories. Sum of (weight × amount)
@@ -157,18 +181,18 @@ local scorers = {
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
-    HP_POT = function(itemID)
+    HP_POT = function(itemID, ctx)
         local quality, ilvl, _, tt = itemFields(itemID)
-        local bonus = qualifiesForImmediateBonus(tt, "HP") and IMMEDIATE_POT_BONUS or 0
+        local bonus = qualifiesForImmediateBonus(tt, "HP", ctx) and IMMEDIATE_POT_BONUS or 0
         return (tt.healValueAvg or 0)
              + (tt.healValue or 0)
              + bonus
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
-    MP_POT = function(itemID)
+    MP_POT = function(itemID, ctx)
         local quality, ilvl, _, tt = itemFields(itemID)
-        local bonus = qualifiesForImmediateBonus(tt, "MP") and IMMEDIATE_POT_BONUS or 0
+        local bonus = qualifiesForImmediateBonus(tt, "MP", ctx) and IMMEDIATE_POT_BONUS or 0
         return (tt.manaValueAvg or 0)
              + (tt.manaValue or 0)
              + bonus
@@ -217,10 +241,28 @@ function R.Score(catKey, itemID, ctx)
     return fn(itemID, ctx) or 0
 end
 
+-- Build a Ranker ctx for a given candidate set, augmenting `existing` if
+-- provided. For HP_POT / MP_POT the scorer's immediate-bonus gate depends
+-- on knowing the best-immediate amount in the set; other categories use
+-- ctx for specPriority and this helper leaves those fields untouched.
+-- Callers that invoke R.Score per item (e.g. the /kcm dump pick debug view)
+-- should route through here so displayed scores match what SortCandidates
+-- produced.
+function R.BuildContext(catKey, itemIDs, existing)
+    local ctx = existing or {}
+    if catKey == "HP_POT" then
+        ctx.bestImmediateAmount = bestImmediateAmount("HP", itemIDs)
+    elseif catKey == "MP_POT" then
+        ctx.bestImmediateAmount = bestImmediateAmount("MP", itemIDs)
+    end
+    return ctx
+end
+
 -- Returns two values:
 --   1. sorted array of itemIDs (highest score first)
 --   2. parallel array of { id, score } rows — handy for debug dumps
 function R.SortCandidates(catKey, itemIDs, ctx)
+    ctx = R.BuildContext(catKey, itemIDs, ctx)
     local rows = {}
     for _, id in ipairs(itemIDs or {}) do
         table.insert(rows, { id = id, score = R.Score(catKey, id, ctx) })
