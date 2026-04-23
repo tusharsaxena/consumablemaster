@@ -7,6 +7,11 @@
 -- vendor's stock so the macro is usable before the first bag scan.
 -- Auto-discovery still picks up anything else the player carries.
 --
+-- Spell entries (KCM.ID.AsSpell) live alongside items in the seed. Ranker
+-- assigns them a huge baseline score so they rank above items by default;
+-- the user can demote or remove them via the Options panel exactly like
+-- any other row.
+--
 -- Source: in-game Silvermoon innkeeper vendor stock (Midnight 12.0).
 -- Last refresh: 2026-04-23. See docs/REFRESH_ITEMS.md to re-run.
 
@@ -14,6 +19,8 @@ local KCM = _G.KCM
 KCM.SEED = KCM.SEED or {}
 
 KCM.SEED.FOOD = {
+    KCM.ID.AsSpell(1231411),  -- Recuperate (spell) — always preferred for Food
+    113509,  -- Conjured Mana Bun (mage conjured food)
     260264,  -- Quel'Danas Rations
     260263,  -- Silvermoon Soiree Spread
     260262,  -- Fairbreeze Feast

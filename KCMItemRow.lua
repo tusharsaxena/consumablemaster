@@ -41,6 +41,32 @@ local function iconForItem(itemID)
     return tex or FALLBACK_ICON
 end
 
+local function iconForSpell(spellID)
+    if not spellID then return FALLBACK_ICON end
+    if C_Spell and C_Spell.GetSpellTexture then
+        local t = C_Spell.GetSpellTexture(spellID)
+        if t then return t end
+    end
+    if C_Spell and C_Spell.GetSpellInfo then
+        local info = C_Spell.GetSpellInfo(spellID)
+        if info and info.iconID then return info.iconID end
+    end
+    return FALLBACK_ICON
+end
+
+local function spellDisplayName(spellID)
+    if not spellID then return "[Loading]" end
+    if C_Spell and C_Spell.GetSpellName then
+        local n = C_Spell.GetSpellName(spellID)
+        if n and n ~= "" then return n end
+    end
+    if C_Spell and C_Spell.GetSpellInfo then
+        local info = C_Spell.GetSpellInfo(spellID)
+        if info and info.name and info.name ~= "" then return info.name end
+    end
+    return "[Loading]"
+end
+
 local function itemDisplayName(itemID)
     if not itemID then return "[Loading]" end
     if C_Item and C_Item.GetItemNameByID then
@@ -52,6 +78,14 @@ local function itemDisplayName(itemID)
         if n then return n end
     end
     return "[Loading]"
+end
+
+local function isSpellEntry(id)
+    return _G.KCM and _G.KCM.ID and _G.KCM.ID.IsSpell(id)
+end
+
+local function spellIDFromEntry(id)
+    return _G.KCM and _G.KCM.ID and _G.KCM.ID.SpellID(id) or nil
 end
 
 -- Sets label width to the exact pixel gap between the left edge (item icon
@@ -128,10 +162,18 @@ local methods = {
 
     ["RefreshDisplay"] = function(self)
         self.ownedTex:SetTexture(self.owned and OWNED_TEX or NOT_OWNED_TEX)
-        self.itemTex:SetTexture(iconForItem(self.itemID))
         if self.isPick then self.pickTex:Show() else self.pickTex:Hide() end
 
-        local qualityAtlas = craftingQualityAtlas(self.itemID)
+        local spellID = isSpellEntry(self.itemID) and spellIDFromEntry(self.itemID) or nil
+
+        if spellID then
+            self.itemTex:SetTexture(iconForSpell(spellID))
+        else
+            self.itemTex:SetTexture(iconForItem(self.itemID))
+        end
+
+        -- Crafting-quality glyph only applies to items; skip for spells.
+        local qualityAtlas = (not spellID) and craftingQualityAtlas(self.itemID) or nil
         self.label:ClearAllPoints()
         -- LEFT anchor only — width is enforced by applyLabelWidth's SetWidth.
         -- Setting both LEFT and RIGHT alongside SetWidth made truncation
@@ -147,12 +189,16 @@ local methods = {
             self.label:SetPoint("LEFT", self.itemTex, "RIGHT", ICON_GAP, 0)
         end
 
-        local name = itemDisplayName(self.itemID)
-        local count = (self.itemID and _G.GetItemCount) and _G.GetItemCount(self.itemID) or 0
-        if count and count > 0 then
-            self.label:SetText(("[%d] %s"):format(count, name))
+        if spellID then
+            self.label:SetText(spellDisplayName(spellID))
         else
-            self.label:SetText(name)
+            local name = itemDisplayName(self.itemID)
+            local count = (self.itemID and _G.GetItemCount) and _G.GetItemCount(self.itemID) or 0
+            if count and count > 0 then
+                self.label:SetText(("[%d] %s"):format(count, name))
+            else
+                self.label:SetText(name)
+            end
         end
         applyLabelWidth(self)
     end,
@@ -221,7 +267,12 @@ local function Constructor()
     frame:SetScript("OnEnter", function(self)
         if not widget.itemID then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetItemByID(widget.itemID)
+        local spellID = isSpellEntry(widget.itemID) and spellIDFromEntry(widget.itemID) or nil
+        if spellID then
+            GameTooltip:SetSpellByID(spellID)
+        else
+            GameTooltip:SetItemByID(widget.itemID)
+        end
         GameTooltip:Show()
     end)
     frame:SetScript("OnLeave", function()

@@ -233,7 +233,15 @@ function S.PickBestForCategory(catKey, specKey)
 
     local hasItem = KCM.BagScanner and KCM.BagScanner.HasItem
     for _, id in ipairs(priority) do
-        if hasItem then
+        if KCM.ID and KCM.ID.IsSpell(id) then
+            local spellID = KCM.ID.SpellID(id)
+            -- IsPlayerSpell covers class / spec / talent-granted spells; it
+            -- is the "do I actually have this" API rather than IsSpellKnown,
+            -- which can miss talent-gated abilities.
+            if spellID and IsPlayerSpell and IsPlayerSpell(spellID) then
+                return id
+            end
+        elseif hasItem then
             if hasItem(id) then return id end
         elseif C_Item and C_Item.GetItemCount and C_Item.GetItemCount(id, false) > 0 then
             return id
@@ -279,9 +287,12 @@ end
 
 -- Add a user-supplied itemID to the candidate set. Also clears a blocklist
 -- entry if present so the add is always visible. Returns true on new entry.
+-- Spells are seed-only; the Options UI validates against GetItemInfoInstant
+-- so it can't reach here with a negative sentinel, but guard anyway.
 function S.AddItem(catKey, itemID, specKey)
     local bucket = S.GetBucket(catKey, specKey)
     if not bucket or not itemID then return false end
+    if KCM.ID and KCM.ID.IsSpell(itemID) then return false end
     bucket.blocked[itemID] = nil
     if bucket.added[itemID] then return false end
     bucket.added[itemID] = true
@@ -306,10 +317,11 @@ end
 
 -- Record that an item was seen in bags (auto-discovery). Idempotent; only
 -- writes if we haven't already seen it, avoiding unnecessary SavedVariables
--- churn on every bag scan.
+-- churn on every bag scan. Spells can't be bag-discovered; guard anyway.
 function S.MarkDiscovered(catKey, itemID, specKey)
     local bucket = S.GetBucket(catKey, specKey)
     if not bucket or not itemID then return false end
+    if KCM.ID and KCM.ID.IsSpell(itemID) then return false end
     if bucket.discovered[itemID] or bucket.blocked[itemID] then return false end
     bucket.discovered[itemID] = true
     return true

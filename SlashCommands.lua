@@ -251,12 +251,25 @@ DUMP_TARGETS.rank = {
 
         local _, rows = KCM.Ranker.SortCandidates(catKey, seed, ctx)
         for i, row in ipairs(rows) do
-            local tt = KCM.TooltipCache and KCM.TooltipCache.Get(row.id)
-            local name = (tt and tt.itemName)
-                or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(row.id))
-                or "?"
-            local tag = (tt and tt.pending) and "  |cffff8800(pending)|r" or ""
-            print(("  %2d. %8.1f  %d  %s%s"):format(i, row.score, row.id, name, tag))
+            local id = row.id
+            local name, tag, displayID
+            if KCM.ID and KCM.ID.IsSpell(id) then
+                local sid = KCM.ID.SpellID(id)
+                displayID = ("spell:%d"):format(sid or 0)
+                if C_Spell and C_Spell.GetSpellName then
+                    name = C_Spell.GetSpellName(sid)
+                end
+                name = name or "?"
+                tag = ""
+            else
+                displayID = tostring(id)
+                local tt = KCM.TooltipCache and KCM.TooltipCache.Get(id)
+                name = (tt and tt.itemName)
+                    or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
+                    or "?"
+                tag = (tt and tt.pending) and "  |cffff8800(pending)|r" or ""
+            end
+            print(("  %2d. %8.1f  %s  %s%s"):format(i, row.score, displayID, name, tag))
         end
     end,
 }
@@ -290,16 +303,28 @@ DUMP_TARGETS.pick = {
         local priority = KCM.Selector.GetEffectivePriority(catKey)
         local pick = KCM.Selector.PickBestForCategory(catKey)
 
-        print(PREFIX .. ("effective priority for %s (%d items):"):format(catKey, #priority))
+        print(PREFIX .. ("effective priority for %s (%d entries):"):format(catKey, #priority))
         for i, id in ipairs(priority) do
-            local tt = KCM.TooltipCache and KCM.TooltipCache.Get(id)
-            local name = (tt and tt.itemName)
-                or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
-                or "?"
-            local have = KCM.BagScanner and KCM.BagScanner.HasItem and KCM.BagScanner.HasItem(id)
+            local name, displayID, have
+            if KCM.ID and KCM.ID.IsSpell(id) then
+                local sid = KCM.ID.SpellID(id)
+                displayID = ("spell:%d"):format(sid or 0)
+                if C_Spell and C_Spell.GetSpellName then
+                    name = C_Spell.GetSpellName(sid)
+                end
+                name = name or "?"
+                have = sid and IsPlayerSpell and IsPlayerSpell(sid) or false
+            else
+                displayID = tostring(id)
+                local tt = KCM.TooltipCache and KCM.TooltipCache.Get(id)
+                name = (tt and tt.itemName)
+                    or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
+                    or "?"
+                have = KCM.BagScanner and KCM.BagScanner.HasItem and KCM.BagScanner.HasItem(id) or false
+            end
             local haveTag = have and "|cff44ff44[owned]|r" or "|cff888888[---]|r"
             local pickTag = (id == pick) and "  |cffffd100<-- pick|r" or ""
-            print(("  %2d. %s  %d  %s%s"):format(i, haveTag, id, name, pickTag))
+            print(("  %2d. %s  %s  %s%s"):format(i, haveTag, displayID, name, pickTag))
         end
         if not pick then
             print(PREFIX .. "no owned item — macro would show empty-state stub.")

@@ -151,8 +151,15 @@ local scorers = {
 -- Public API
 -- ---------------------------------------------------------------------------
 
+-- Spell entries (negative sentinel) outrank every item by default. Pins win
+-- over score, so a user who reorders a spell down in the priority list still
+-- sees their ordering respected — the huge score only controls the
+-- unpinned Ranker baseline.
+local SPELL_SCORE = 1e9
+
 function R.Score(catKey, itemID, ctx)
     if not catKey or not itemID then return 0 end
+    if KCM.ID and KCM.ID.IsSpell(itemID) then return SPELL_SCORE end
     local fn = scorers[catKey]
     if not fn then return 0 end
     return fn(itemID, ctx) or 0

@@ -7,6 +7,21 @@ _G.KCM = KCM
 
 KCM.VERSION = "0.1.0"
 
+-- Priority-list entries are opaque numeric IDs. Positive = itemID; negative
+-- is a spell-sentinel whose absolute value is the spellID. Using a disjoint
+-- numeric range lets every candidate-set / pins / blocked table stay keyed
+-- by plain numbers — no schema change — while MacroManager, Ranker, and the
+-- UI fork on the sign to render "/use item:<id>" vs "/cast <spell>".
+--
+-- Seed files compose spell entries with KCM.ID.AsSpell(spellID) for
+-- readability, e.g. `KCM.ID.AsSpell(1231411)` for Recuperate.
+KCM.ID = KCM.ID or {}
+function KCM.ID.AsSpell(spellID) return -spellID end
+function KCM.ID.IsSpell(id) return type(id) == "number" and id < 0 end
+function KCM.ID.IsItem(id)  return type(id) == "number" and id > 0 end
+function KCM.ID.SpellID(id) return (type(id) == "number" and id < 0) and -id or nil end
+function KCM.ID.ItemID(id)  return (type(id) == "number" and id > 0) and  id or nil end
+
 KCM.dbDefaults = {
     profile = {
         schemaVersion = 1,

@@ -22,15 +22,46 @@ local DEFAULT_ICON         = "INV_Misc_QuestionMark"
 -- ---------------------------------------------------------------------------
 -- Body builders
 -- ---------------------------------------------------------------------------
--- Active body: `#showtooltip` + `/use item:<id>`. The "item:<id>" form lets
--- /use fire even if the item name is localized differently on the client.
+-- Active body for an item pick:  `#showtooltip` + `/use item:<id>`. The
+-- "item:<id>" form lets /use fire even if the item name is localized
+-- differently on the client.
+-- Active body for a spell pick:  `#showtooltip` + `/cast <Spell Name>`. WoW
+-- does not accept spellID in /cast; it requires the localized name (English
+-- here). C_Spell.GetSpellName is the modern API, with a GetSpellInfo
+-- fallback for clients that still expose the legacy global.
 --
 -- Empty-state body: prints the category's emptyText. Using /run instead of
 -- /use means clicking the macro still does *something* (a chat message)
 -- when the player has no qualifying item, rather than silently failing.
 
-local function buildActiveBody(itemID)
-    return ("#showtooltip\n/use item:%d"):format(itemID)
+local function spellNameFor(spellID)
+    if not spellID then return nil end
+    if C_Spell and C_Spell.GetSpellName then
+        local n = C_Spell.GetSpellName(spellID)
+        if n and n ~= "" then return n end
+    end
+    if C_Spell and C_Spell.GetSpellInfo then
+        local info = C_Spell.GetSpellInfo(spellID)
+        if info and info.name and info.name ~= "" then return info.name end
+    end
+    if GetSpellInfo then
+        local n = GetSpellInfo(spellID)
+        if n and n ~= "" then return n end
+    end
+    return nil
+end
+
+local function buildActiveBody(id)
+    if KCM.ID and KCM.ID.IsSpell(id) then
+        local spellID = KCM.ID.SpellID(id)
+        local name = spellNameFor(spellID)
+        if name then return ("#showtooltip\n/cast %s"):format(name) end
+        -- Spell name not yet resolvable (very rare — would imply the spell
+        -- book hasn't hydrated). Emit a user-visible stub so the macro
+        -- exists and the failure is observable rather than silent.
+        return ("#showtooltip\n/run print('KCM: spell %d name unavailable')"):format(spellID or 0)
+    end
+    return ("#showtooltip\n/use item:%d"):format(id)
 end
 
 local function buildEmptyBody(cat)

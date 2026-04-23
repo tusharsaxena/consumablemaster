@@ -4,7 +4,7 @@
 ## Author: Ka0s
 ## Version: 0.1.0
 ## SavedVariables: ConsumableMasterDB
-## IconTexture: Interface\Icons\INV_Misc_QuestionMark
+## IconTexture: Interface\Icons\inv_cooking_100_roastduck
 
 embeds.xml
 

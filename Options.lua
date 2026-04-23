@@ -527,9 +527,18 @@ local function buildCategoryArgs(catKey)
                 fontSize = "medium",
             }
         else
+            -- Spell entries (negative sentinel) are "owned" iff IsPlayerSpell
+            -- returns true; BagScanner only knows about items.
+            local function isOwned(id)
+                if KCM.ID and KCM.ID.IsSpell(id) then
+                    local sid = KCM.ID.SpellID(id)
+                    return sid and IsPlayerSpell and IsPlayerSpell(sid) or false
+                end
+                return hasItem and hasItem(id) or false
+            end
             for i, id in ipairs(priority) do
                 local base   = 30 + i * 10
-                local owned  = hasItem and hasItem(id) or false
+                local owned  = isOwned(id)
                 local isFirst = (i == 1)
                 local isLast  = (i == #priority)
                 local rowID   = id  -- capture for closures
