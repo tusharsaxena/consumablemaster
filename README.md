@@ -114,9 +114,10 @@ Every recompute runs this pipeline per category:
 
 Hovering the **blue info button** on any row shows the full per-item score breakdown (each contributing signal and a one-line summary of the scoring rule), so you can see exactly why an entry landed where it did.
 
-## Compatibility
+## Bug Reports
 
-- Retail WoW (Interface version 120000+)
+Please report any issues in the [Issues](https://github.com/tusharsaxena/consumablemaster/issues) tab, not as a comment!
+
 
 ## Version History
 
