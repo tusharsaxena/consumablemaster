@@ -121,30 +121,37 @@ event  ─▶  RequestRecompute(reason)
             │  coalesces a flurry of events into one run.
             ▼
           Recompute(reason)
+            │  scoreCache = { fields = {} }            -- fresh per pass
             │  for each category in Categories.LIST:
-            │      RecomputeOne(catKey, reason)
-            │         pick = Selector.PickBestForCategory(catKey)
+            │      pcall(RecomputeOne, catKey, scoreCache, reason)
+            │         pick = Selector.PickBestForCategory(catKey, nil, scoreCache)
             │         MacroManager.SetMacro(cat.macroName, pick, catKey)
             │  then Options.Refresh() — cheap NotifyChange passthrough.
             ▼
           per-category:
-              Selector.GetEffectivePriority(catKey)
-                  candidates = BuildCandidateSet(catKey)       -- pure
-                  sorted     = Ranker.SortCandidates(...)      -- pure
-                  final      = mergePins(sorted, bucket.pins)  -- pure
-              walk final, return first itemID BagScanner says you own.
+              Selector.GetEffectivePriority(catKey, specKey, scoreCache)
+                  candidates = BuildCandidateSet(catKey)                    -- pure
+                  sorted     = Ranker.SortCandidates(cat, cands, ctx, cache) -- pure
+                  final      = mergePins(sorted, bucket.pins)               -- pure
+              walk final, return first id BagScanner.HasItem says you own
+              (items) or IsPlayerSpell confirms (spell sentinels).
 ```
+
+`scoreCache` is threaded all the way through Pipeline → Selector → Ranker. It memoizes `GetItemInfo` + `TooltipCache.Get` results under `scoreCache.fields[id]` and per-category Ranker scores under `scoreCache[catKey][id]` — so a bag-flurry event that touches multiple macros doesn't re-score the same candidate set once per category. Panel rendering and `/kcm dump` paths pass `nil` and fall back to the uncached code path, preserving the live-data view.
+
+Per-category `pcall` isolates failures: one throwing scorer (e.g. a Blizzard tooltip-shape change) can't break the other seven macros in the same recompute.
 
 **Events** (wired in `Core:OnEnable`):
 
 | Event                           | Handler                   | What it does                          |
 |---------------------------------|---------------------------|----------------------------------------|
-| `PLAYER_ENTERING_WORLD`         | `OnPlayerEnteringWorld`   | auto-discovery + RequestRecompute.    |
+| `PLAYER_ENTERING_WORLD`         | `OnPlayerEnteringWorld`   | auto-discovery, `Selector.SweepStaleDiscovered(time())`, then RequestRecompute. |
 | `BAG_UPDATE_DELAYED`            | `OnBagUpdateDelayed`      | auto-discovery + RequestRecompute.    |
 | `PLAYER_SPECIALIZATION_CHANGED` | `OnSpecChanged`           | RequestRecompute.                     |
 | `PLAYER_REGEN_DISABLED`         | `OnRegenDisabled`         | `KCM._inCombat = true`.               |
 | `PLAYER_REGEN_ENABLED`          | `OnRegenEnabled`          | `MacroManager.FlushPending()`.        |
 | `GET_ITEM_INFO_RECEIVED`        | `OnItemInfoReceived`      | TooltipCache.Invalidate(id) + retry discovery + RequestRecompute. |
+| `LEARNED_SPELL_IN_TAB`          | `OnLearnedSpellInTab`     | RequestRecompute — so a newly-learned spell entry hydrates its macro body without a reload. |
 
 `GET_ITEM_INFO_RECEIVED` retry exists because `Classifier.Match` returns false while a tooltip is pending; without the retry, items present in bags from `/reload` silently skip discovery on the first pass.
 
@@ -163,14 +170,14 @@ db.profile
 │   │   ├── added       { [itemID] = true }
 │   │   ├── blocked     { [itemID] = true }
 │   │   ├── pins        { { itemID, position }, ... }
-│   │   └── discovered  { [itemID] = true }
+│   │   └── discovered  { [itemID] = unixTimestamp }  -- last-seen in bags
 │   └── STAT_FOOD │ CMBT_POT │ FLASK            ← spec-aware:
 │       └── bySpec
 │           └── ["<classID>_<specID>"]
 │               ├── added
 │               ├── blocked
 │               ├── pins
-│               └── discovered
+│               └── discovered   { [itemID] = unixTimestamp }
 ├── statPriority
 │   └── ["<classID>_<specID>"] = { primary, secondary[] }   -- user overrides only
 └── macroState
@@ -178,6 +185,8 @@ db.profile
 ```
 
 `KCM.ResetAllToDefaults(reason)` in Core.lua is the one place that wipes `categories` + `statPriority` back to `dbDefaults`. Both the Options "Reset all" button and `/kcm reset`'s StaticPopup delegate to it so semantics stay identical. It also runs TooltipCache.InvalidateAll → RunAutoDiscovery → Recompute on every call.
+
+`Selector.MarkDiscovered` stamps `discovered[id]` with the current unix time on every sighting; legacy `true` values written by v1.0.0 are honoured on read and bumped to a timestamp the first time the item is seen again. `Selector.SweepStaleDiscovered(nowUnix)` (PEW-only) refreshes any id still present in bags and deletes entries older than 30 days — a bounded-growth guarantee for accounts that pass through many consumable tiers.
 
 ---
 
@@ -190,6 +199,7 @@ db.profile
 - **Module publishing pattern:** every file does `KCM.Foo = KCM.Foo or {}; local F = KCM.Foo`. Never shadow the local over the global.
 - **Recompute is coalesced.** Event handlers call `RequestRecompute`, never `Recompute` directly — except the rare direct path (Reset, `/kcm resync`) where we want the write to land this tick.
 - **Priority-list IDs are opaque numbers with sign semantics.** Positive = itemID, negative = `KCM.ID.AsSpell(spellID)`. Only `MacroManager` and the UI fork on sign; every other layer treats them as plain table keys. Keep it that way — no new side channels.
+- **Score cache lives for one Recompute pass and no longer.** `scoreCache` is created fresh in `Pipeline.Recompute` and threaded through `Selector.PickBestForCategory` → `Ranker.SortCandidates`. Never cache across passes — tooltip/bag/spec state can shift between events. Non-pipeline callers (the Options panel, `/kcm dump pick`) pass `nil` so they always see fresh scores.
 
 ---
 

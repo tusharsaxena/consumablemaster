@@ -6,7 +6,7 @@ An auto-managed consumable-macro addon for **World of Warcraft: Midnight**. Keep
 
 **Slash prefix:** `/kcm`
 **Framework:** Ace3 (AceAddon, AceEvent, AceDB, AceConsole, AceConfig)
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Locale:** English only
 
 ## What it does
@@ -17,12 +17,12 @@ Every time you loot a better food, swap spec, reload, or leave combat, Ka0s Cons
 |---|---------------------------|-----------------|-------------|
 | 1 | Basic / conjured food     | `KCM_FOOD`      | No          |
 | 2 | Drink (mana regen)        | `KCM_DRINK`     | No          |
-| 3 | Stat food                 | `KCM_STAT_FOOD` | **Yes**     |
-| 4 | Healing potion            | `KCM_HP_POT`    | No          |
-| 5 | Mana potion               | `KCM_MP_POT`    | No          |
-| 6 | Warlock healthstone       | `KCM_HS`        | No          |
+| 3 | Healing potion            | `KCM_HP_POT`    | No          |
+| 4 | Mana potion               | `KCM_MP_POT`    | No          |
+| 5 | Warlock healthstone       | `KCM_HS`        | No          |
+| 6 | Flask                     | `KCM_FLASK`     | **Yes**     |
 | 7 | Combat potion (throughput)| `KCM_CMBT_POT`  | **Yes**     |
-| 8 | Flask                     | `KCM_FLASK`     | **Yes**     |
+| 8 | Stat food                 | `KCM_STAT_FOOD` | **Yes**     |
 
 Macro writes that would land during combat are queued and flushed on `PLAYER_REGEN_ENABLED` — the addon never calls a protected macro API in combat.
 
@@ -120,6 +120,14 @@ Please report any issues in the [Issues](https://github.com/tusharsaxena/consuma
 
 
 ## Version History
+
+**v1.1.0**
+
+*   Correctness: locked items (stack-split, mail) no longer trigger a macro flap; one bad category scorer can no longer break the other seven (per-category `pcall` in Recompute); oversized macro bodies fall back to the empty-state stub with a one-shot chat error instead of silently truncating; combat deferrals retry up to three times before giving up, with a chat notice.
+*   Performance: a per-Recompute score cache memoizes `GetItemInfo`, tooltip parses, and per-category Ranker scores so a flurry of bag events doesn't re-score the same candidate set eight times over.
+*   Discovery GC: `discovered` entries are stamped with a unix timestamp; a PEW-time sweep deletes items not seen in bags for 30 days so the set can't grow unbounded across account-lifetime play.
+*   Spell hydration: `LEARNED_SPELL_IN_TAB` now triggers a recompute so a just-learned spell entry (e.g. Recuperate on level-up) adopts its macro body without a reload.
+*   UX: category tabs reordered to Food → Drink → Healing Potion → Mana Potion → Healthstone → Flask → Combat Potion → Stat Food. Empty-state macros now show a cooking-pot fallback icon instead of the question mark.
 
 **v1.0.0**
 

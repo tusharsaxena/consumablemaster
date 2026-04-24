@@ -6,7 +6,7 @@ Guidance for Claude Code (and other LLM-assisted editors) working on **Ka0s Cons
 
 ## What this addon is
 
-Eight account-wide global macros whose bodies auto-rewrite to the best consumable in bags for each category (food, drink, stat food, HP pot, MP pot, healthstone, combat pot, flask). Retail Midnight only (Interface 120000). English only. Ace3 throughout.
+Eight account-wide global macros whose bodies auto-rewrite to the best consumable in bags for each category (food, drink, HP pot, MP pot, healthstone, flask, combat pot, stat food — the panel/tab order). Retail Midnight only (Interface 120000). English only. Ace3 throughout.
 
 Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the module map and pipeline; [docs/TECHNICAL_DESIGN.md](./docs/TECHNICAL_DESIGN.md) for deep design; [docs/REQUIREMENTS.md](./docs/REQUIREMENTS.md) for scope boundaries; [docs/EXECUTION_PLAN.md](./docs/EXECUTION_PLAN.md) for milestone history.
 
@@ -138,6 +138,7 @@ Run `/kcm dump item <id>` to see the subType + parsed tooltip. If subType is wro
 - **`GET_ITEM_INFO_RECEIVED` does not fire for already-cached items.** That's why FLASK is classified from subType alone (no tooltip gate) and why discovery retries on this event only help the not-yet-cached case. Don't regress this.
 - **Combat lockdown taints protected APIs.** Any path that could reach `EditMacro` must check `InCombatLockdown()` first. The only path that does is `MacroManager.SetMacro` — keep it that way.
 - **AceConfigDialog:AddToBlizOptions returns `(frame, categoryID)` on modern clients.** The ID is numeric; passing the frame to `Settings.OpenToCategory` produces a range error. Always capture both return values and pass the ID.
+- **`#showtooltip` forces the `?` icon when it can't resolve a `/use` or `/cast`.** The stored macro icon only renders when the body has no `#showtooltip` directive at all. That's why `buildEmptyBody` in `MacroManager.lua` emits just the `/run` line — so the stored `DEFAULT_ICON` (file ID `7704166`, the cooking pot) shows for empty categories instead of the question mark. Active bodies keep `#showtooltip` so they adopt the picked item's icon.
 
 ---
 
