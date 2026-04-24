@@ -630,11 +630,11 @@ SweepStaleDiscovered():
                     bucket.discovered[id] = now       -- bump; never sweep owned items
                 else:
                     staleTs = (ts == true) and 0 or ts
-                    if staleTs < cutoff and Classifier.MatchAny(id) does not contain catKey:
-                        bucket.discovered[id] = nil   -- drop: stale AND no longer classifies
-                    elseif staleTs < cutoff:
-                        bucket.discovered[id] = nil   -- drop: just stale
+                    if staleTs < cutoff:
+                        bucket.discovered[id] = nil   -- drop: stale
 ```
+
+TTL is the only gate — a classifier re-check was considered but dropped to keep scope tight. If a subType rename later re-classifies an id under a different category, the stale entry still times out on its own within 30 days of bag absence.
 
 The `added` and `blocked` sets are **never** swept (user-intentional data).
 

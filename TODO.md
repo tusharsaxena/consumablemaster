@@ -16,10 +16,20 @@
 - ✅ Rename the entry in the Settings Panel to be Consumable Master instead of Ka0s Consumable Master. The addon name should be retained as Ka0s Consumable Master though. Do not rename the directory name. 
 - ✅ Add the ability to add an item or spell to each category. Achieve this by having a dropdown to select Item or Spell to the left of the inputbox. Add a validator to check whether a valid itemid or spellid has been entered. 
 - ✅ Add a confirmation dialog before adding an item or spell
-- ⬜ TODO - relook at seed lists are sort order
-- ⬜ Add support for vantus runes, weapon oils, whethstones and weightstones
+- ⬜ relook at seed lists and sort order
+- ⬜ check resync behavior
+- ⬜ test combat behavior
+- ⬜ test what happens when a specific consumable is exhausted
+- ⬜ Add support for vantus runes, weapon oils, whethstones and weightstones, jumper cables, drums, invis pots
+- ⬜ Add fallback icons for every category macro when empty (not the question mark)
+- ⬜ Change order of panel entries - food > drink > healing potion > mana potion > healthstone > flask > combat potion > stat food
 - ⬜ Add stat weights alongside stat priorities for primary and secondary stats to better improve ranking
 - ⬜ for every item, add a checkbox to disable a specific item from being picked by the macro. this will allow the user to preserve ordering without deleting the item altogether
+
+## Deferred M9 smoke tests
+
+- ⬜ M9.31 (M-9 gate): respec into a build that grants a spell on the Food seed list (e.g. Recuperate for Rogue). After learning the spell, `KCM_FOOD` should recompute to the spell pick within one frame — no bag event or spec change needed. Code path is wired (`LEARNED_SPELL_IN_TAB` in `Core.lua`); needs in-game verification.
+- ⬜ M9.32 (M-12 gate): force three `EditMacro` failures on a single queued entry via a debug harness (`/run _G._orig=EditMacro; EditMacro=function() return 0 end`), enter/exit combat three times, confirm the third regen drops the entry and prints the give-up notice. Restore with `/run EditMacro=_G._orig`.
 
 ## Deferred from PE review (post-1.0 hardening, sections 3–6 not scheduled in v1.1.0)
 
