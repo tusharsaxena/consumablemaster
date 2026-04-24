@@ -17,7 +17,18 @@ local M = KCM.MacroManager
 local MAX_ACCOUNT_MACROS   = 120
 local MACRO_BODY_LIMIT     = 255   -- Blizzard hard cap
 local MAX_FLUSH_ATTEMPTS   = 3
+-- Empty-state macros store DEFAULT_ICON (cooking pot) — their bodies have no
+-- `#showtooltip`, so this static icon is what renders on the action bar.
+-- Active macros store DYNAMIC_ICON (the `?` fileID, 134400). WoW treats that
+-- specific fileID as a sentinel meaning "let `#showtooltip` drive the icon";
+-- any other stored icon overrides `#showtooltip` on the action bar. This
+-- matters on ElvUI/Bartender/etc. but is also the stock Blizzard behavior.
 local DEFAULT_ICON         = 7704166
+local DYNAMIC_ICON         = 134400
+
+local function iconFor(itemID)
+    return itemID and DYNAMIC_ICON or DEFAULT_ICON
+end
 
 -- One-shot gate per category so a chronic oversize doesn't spam chat on
 -- every recompute. Cleared only on /reload — that's a feature: the user
@@ -71,9 +82,12 @@ end
 
 local function buildEmptyBody(cat)
     local text = (cat and cat.emptyText) or "/run print('KCM: no item available')"
-    -- No `#showtooltip` here: when the directive can't resolve a /use or
-    -- /cast line it forces the ? icon regardless of the stored icon.
-    -- Dropping it lets DEFAULT_ICON (7704166) show for empty macros.
+    -- No `#showtooltip` here. With `#showtooltip` present and the stored icon
+    -- set to `?` (our DYNAMIC_ICON for active macros), WoW tries to resolve
+    -- the icon from the first /use or /cast — but the empty body is a plain
+    -- /run line, so the action bar would fall back to the `?` icon instead
+    -- of our cooking-pot DEFAULT_ICON. Dropping `#showtooltip` pairs with
+    -- iconFor(nil) → DEFAULT_ICON so the cooking pot renders for empties.
     return text
 end
 
@@ -117,30 +131,30 @@ local function doEdit(macroName, itemID, body, catKey)
     if not (GetMacroIndexByName and EditMacro and CreateMacro) then
         return "error", "macro API unavailable"
     end
+    local icon = iconFor(itemID)
     local idx = GetMacroIndexByName(macroName)
     if idx == 0 then
-        -- CreateMacro signature: (name, icon, body, perCharacter)
-        -- Icon accepts fileID or texture path. DEFAULT_ICON is the stored
-        -- fallback shown when the macro body has no resolvable /use or
-        -- /cast (empty-state). Active macros override it via the
-        -- #showtooltip directive, which adopts the item's icon.
+        -- CreateMacro signature: (name, icon, body, perCharacter). Icon
+        -- accepts fileID or texture path. Active → DYNAMIC_ICON (lets
+        -- `#showtooltip` resolve the item/spell icon). Empty → DEFAULT_ICON
+        -- (the stored cooking pot renders because empty bodies omit
+        -- `#showtooltip` entirely).
         local numAcct = GetNumMacros()
         if numAcct >= MAX_ACCOUNT_MACROS then
             return "error", "account macro quota full (120)"
         end
-        CreateMacro(macroName, DEFAULT_ICON, body, false)
+        CreateMacro(macroName, icon, body, false)
         idx = GetMacroIndexByName(macroName)
         if idx == 0 then return "error", "CreateMacro did not produce an index" end
         return "created"
     end
     -- EditMacro returns the macro index on success; 0 / nil indicates the
     -- edit was rejected (e.g. body failed validation). We use this signal to
-    -- drive M-12's bounded retry.
-    -- Pass DEFAULT_ICON on every edit so macros created by prior versions
-    -- (with the question-mark icon) migrate to the current fallback. For
-    -- active bodies the #showtooltip line overrides the stored icon, so
-    -- re-asserting the fallback here is safe.
-    local editedIdx = EditMacro(idx, nil, DEFAULT_ICON, body)
+    -- drive M-12's bounded retry. Re-asserting the stored icon on every edit
+    -- migrates macros from prior addon versions (which always stored
+    -- DEFAULT_ICON, causing action bars to show the cooking pot instead of
+    -- the picked item's icon).
+    local editedIdx = EditMacro(idx, nil, icon, body)
     if editedIdx == 0 or editedIdx == nil then
         return "error", "EditMacro returned no index"
     end
@@ -161,6 +175,7 @@ function M.SetMacro(macroName, itemID, catKey)
     end
 
     local body = M.BuildBody(catKey, itemID)
+    local effectiveItemID = itemID
     if #body > MACRO_BODY_LIMIT then
         -- Silent truncation corrupted the macro (e.g. half a /cast line), so
         -- swap to the category's empty-state body and surface the problem
@@ -176,20 +191,23 @@ function M.SetMacro(macroName, itemID, catKey)
             print(("|cffff8800[KCM]|r %s macro body exceeds 255 bytes — macro is inert until the picked entry's body fits. Please report this."):format(catKey))
         end
         body = buildEmptyBody(cat)
+        effectiveItemID = nil  -- body is now empty-state; stored icon must follow
     end
+    local icon = iconFor(effectiveItemID)
 
     KCM.db.profile.macroState = KCM.db.profile.macroState or {}
     local state   = KCM.db.profile.macroState[macroName]
     local pending = pendingUpdates[macroName]
 
     -- If a pending write is queued but already matches the current on-disk
-    -- body, drop it — the queued EditMacro would be redundant.
-    if state and state.lastBody == body and pending and pending.body == body then
+    -- body+icon, drop it — the queued EditMacro would be redundant.
+    if state and state.lastBody == body and state.lastIcon == icon
+            and pending and pending.body == body then
         pendingUpdates[macroName] = nil
         return "unchanged"
     end
-    if state and state.lastBody == body and pending == nil then
-        -- Same body and no pending write in flight → nothing to do.
+    if state and state.lastBody == body and state.lastIcon == icon and pending == nil then
+        -- Same body+icon and no pending write in flight → nothing to do.
         return "unchanged"
     end
 
@@ -210,7 +228,7 @@ function M.SetMacro(macroName, itemID, catKey)
         return "deferred"
     end
 
-    local result, err = doEdit(macroName, itemID, body, catKey)
+    local result, err = doEdit(macroName, effectiveItemID, body, catKey)
     if result == "error" then
         if KCM.Debug and KCM.Debug.Print then
             KCM.Debug.Print("MacroManager: %s failed — %s", macroName, tostring(err))
@@ -221,12 +239,13 @@ function M.SetMacro(macroName, itemID, catKey)
     KCM.db.profile.macroState[macroName] = {
         lastItemID = itemID,
         lastBody   = body,
+        lastIcon   = icon,
         lastCat    = catKey,
     }
     pendingUpdates[macroName] = nil
     if KCM.Debug and KCM.Debug.Print then
-        KCM.Debug.Print("MacroManager: %s %s (item=%s)",
-            macroName, result, tostring(itemID))
+        KCM.Debug.Print("MacroManager: %s %s (item=%s icon=%s)",
+            macroName, result, tostring(itemID), tostring(icon))
     end
     return result
 end
@@ -280,4 +299,21 @@ end
 function M.IsAdopted(macroName)
     if not GetMacroIndexByName then return false end
     return GetMacroIndexByName(macroName) ~= 0
+end
+
+-- ---------------------------------------------------------------------------
+-- InvalidateState — clear cached body/icon fingerprints so the next pipeline
+-- run writes every macro from scratch. Used by `/kcm rewritemacros` when a
+-- user needs to force-refresh icons without deleting the macros themselves
+-- (stored icon corrupted, action-bar framework cached the old texture, etc.).
+-- Also drops the combat-deferral queue since those entries reference stale
+-- state expectations.
+-- ---------------------------------------------------------------------------
+
+function M.InvalidateState()
+    if KCM.db and KCM.db.profile then
+        KCM.db.profile.macroState = {}
+    end
+    pendingUpdates = {}
+    alreadyWarnedOversized = {}
 end

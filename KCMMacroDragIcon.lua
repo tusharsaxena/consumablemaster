@@ -31,7 +31,29 @@ local function macroIndex(name)
     return GetMacroIndexByName(name) or 0
 end
 
-local function macroIcon(index)
+-- Active KCM macros store the `?` sentinel as their icon (so `#showtooltip`
+-- can drive the action bar button). That sentinel is meaningless on our
+-- static widget, so render the picked item's / spell's texture directly
+-- from macroState. Falls back to the stored icon (empty-state → cooking
+-- pot) and then to FALLBACK_ICON if none is available.
+local function macroIcon(macroName, index)
+    local KCM = _G.KCM
+    local state = KCM and KCM.db and KCM.db.profile and KCM.db.profile.macroState
+    local entry = state and state[macroName]
+    local lastID = entry and entry.lastItemID
+    local ID = KCM and KCM.ID
+    if lastID and ID then
+        if ID.IsSpell(lastID) and C_Spell and C_Spell.GetSpellTexture then
+            local tex = C_Spell.GetSpellTexture(ID.SpellID(lastID))
+            if tex then return tex end
+        elseif ID.IsItem(lastID) then
+            local getIcon = C_Item and C_Item.GetItemIconByID or GetItemIcon
+            if getIcon then
+                local tex = getIcon(lastID)
+                if tex then return tex end
+            end
+        end
+    end
     if index == 0 or not GetMacroInfo then return FALLBACK_ICON end
     local _, icon = GetMacroInfo(index)
     return icon or FALLBACK_ICON
@@ -87,7 +109,7 @@ local methods = {
 
     ["RefreshDisplay"] = function(self)
         local idx = macroIndex(self.macroName)
-        self.icon:SetTexture(macroIcon(idx))
+        self.icon:SetTexture(macroIcon(self.macroName, idx))
         if idx == 0 then
             self.label:SetText("|cff999999Macro not created yet|r")
             self.frame:Disable()

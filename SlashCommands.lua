@@ -302,6 +302,7 @@ local function printHelp()
     print("  |cffffff00/kcm config|r      open settings panel")
     print("  |cffffff00/kcm debug|r       toggle debug mode")
     print("  |cffffff00/kcm resync|r      force macros to resync from bags")
+    print("  |cffffff00/kcm rewritemacros|r  force a full rewrite of every KCM macro (icon + body)")
     print("  |cffffff00/kcm reset|r       reset all priority lists to defaults")
     print("  |cffffff00/kcm version|r     print addon version")
     print("  |cffffff00/kcm dump|r        dump internal state. subcommands:")
@@ -373,6 +374,17 @@ function KCM:OnSlashCommand(msg)
         if KCM.Pipeline and KCM.Pipeline.Recompute then
             KCM.Pipeline.Recompute("manual_resync")
             print(PREFIX .. "recomputed all categories.")
+        end
+    elseif cmd == "rewritemacros" or cmd == "rewrite" then
+        if InCombatLockdown and InCombatLockdown() then
+            print(PREFIX .. "in combat — macro writes deferred until regen.")
+        end
+        if KCM.MacroManager and KCM.MacroManager.InvalidateState then
+            KCM.MacroManager.InvalidateState()
+        end
+        if KCM.Pipeline and KCM.Pipeline.Recompute then
+            KCM.Pipeline.Recompute("manual_rewrite")
+            print(PREFIX .. "rewrote all macros (body + icon). If action bar icons still look stale, /reload to force the bars to refresh.")
         end
     elseif cmd == "reset" then
         if StaticPopup_Show then

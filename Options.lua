@@ -265,8 +265,11 @@ local function buildGeneralArgs()
             type  = "execute",
             order = 2,
             name  = "Force resync",
-            desc  = "Invalidate tooltip cache, rescan bags, rewrite every macro. "
-                 .. "Same as /kcm resync. Blocked in combat.",
+            desc  = "Invalidate the tooltip cache, re-run auto-discovery against "
+                 .. "your bags, and recompute every category's pick. Macros are "
+                 .. "re-issued only if the picked item or body actually changes "
+                 .. "— use Force rewrite macros below to re-issue them "
+                 .. "unconditionally. Same as /kcm resync. Blocked in combat.",
             width = "full",
             func  = function()
                 if InCombatLockdown and InCombatLockdown() then
@@ -282,6 +285,30 @@ local function buildGeneralArgs()
                 if KCM.Pipeline and KCM.Pipeline.Recompute then
                     KCM.Pipeline.Recompute("options_resync")
                 end
+                O.Refresh()
+            end,
+        },
+
+        rewritemacros = {
+            type  = "execute",
+            order = 2.5,
+            name  = "Force rewrite macros",
+            desc  = "Clear cached macro fingerprints and re-issue every KCM macro "
+                 .. "(body + stored icon). Use this if a macro's action-bar icon "
+                 .. "looks stale. Same as /kcm rewritemacros. Blocked in combat.",
+            width = "full",
+            func  = function()
+                if InCombatLockdown and InCombatLockdown() then
+                    print("|cffff8800[KCM]|r in combat — macro writes deferred until regen.")
+                    return
+                end
+                if KCM.MacroManager and KCM.MacroManager.InvalidateState then
+                    KCM.MacroManager.InvalidateState()
+                end
+                if KCM.Pipeline and KCM.Pipeline.Recompute then
+                    KCM.Pipeline.Recompute("options_rewrite")
+                end
+                print("|cffff8800[KCM]|r rewrote all macros. If action bar icons still look stale, /reload to force the bars to refresh.")
                 O.Refresh()
             end,
         },
