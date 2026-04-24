@@ -32,15 +32,6 @@ KCM.Categories.LIST = {
         emptyText   = "/run print('KCM: no drink in bags')",
     },
     {
-        key         = "STAT_FOOD",
-        macroName   = "KCM_STAT_FOOD",
-        displayName = "Stat Food",
-        specAware   = true,
-        rankerKey   = "STAT_FOOD",
-        classifier  = "STAT_FOOD",
-        emptyText   = "/run print('KCM: no stat food for this spec')",
-    },
-    {
         key         = "HP_POT",
         macroName   = "KCM_HP_POT",
         displayName = "Healing Potion",
@@ -68,6 +59,15 @@ KCM.Categories.LIST = {
         emptyText   = "/run print('KCM: no healthstone in bags')",
     },
     {
+        key         = "FLASK",
+        macroName   = "KCM_FLASK",
+        displayName = "Flask",
+        specAware   = true,
+        rankerKey   = "FLASK",
+        classifier  = "FLASK",
+        emptyText   = "/run print('KCM: no flask for this spec')",
+    },
+    {
         key         = "CMBT_POT",
         macroName   = "KCM_CMBT_POT",
         displayName = "Combat Potion",
@@ -77,13 +77,13 @@ KCM.Categories.LIST = {
         emptyText   = "/run print('KCM: no combat potion for this spec')",
     },
     {
-        key         = "FLASK",
-        macroName   = "KCM_FLASK",
-        displayName = "Flask",
+        key         = "STAT_FOOD",
+        macroName   = "KCM_STAT_FOOD",
+        displayName = "Stat Food",
         specAware   = true,
-        rankerKey   = "FLASK",
-        classifier  = "FLASK",
-        emptyText   = "/run print('KCM: no flask for this spec')",
+        rankerKey   = "STAT_FOOD",
+        classifier  = "STAT_FOOD",
+        emptyText   = "/run print('KCM: no stat food for this spec')",
     },
 }
 

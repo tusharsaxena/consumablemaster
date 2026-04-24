@@ -24,7 +24,7 @@ local GameTooltip = GameTooltip
 local ICON_SIZE      = 36
 local ROW_HEIGHT     = 40
 local LABEL_GAP      = 8
-local FALLBACK_ICON  = 134400 -- INV_Misc_QuestionMark
+local FALLBACK_ICON  = 7704166 -- matches MacroManager.DEFAULT_ICON
 
 local function macroIndex(name)
     if not name or not GetMacroIndexByName then return 0 end

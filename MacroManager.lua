@@ -17,7 +17,7 @@ local M = KCM.MacroManager
 local MAX_ACCOUNT_MACROS   = 120
 local MACRO_BODY_LIMIT     = 255   -- Blizzard hard cap
 local MAX_FLUSH_ATTEMPTS   = 3
-local DEFAULT_ICON         = "INV_Misc_QuestionMark"
+local DEFAULT_ICON         = 7704166
 
 -- One-shot gate per category so a chronic oversize doesn't spam chat on
 -- every recompute. Cleared only on /reload — that's a feature: the user
@@ -71,9 +71,10 @@ end
 
 local function buildEmptyBody(cat)
     local text = (cat and cat.emptyText) or "/run print('KCM: no item available')"
-    -- emptyText in Categories.lua already starts with `/run` so we don't
-    -- double it up.
-    return "#showtooltip\n" .. text
+    -- No `#showtooltip` here: when the directive can't resolve a /use or
+    -- /cast line it forces the ? icon regardless of the stored icon.
+    -- Dropping it lets DEFAULT_ICON (7704166) show for empty macros.
+    return text
 end
 
 function M.BuildBody(catKey, itemID)
@@ -119,10 +120,10 @@ local function doEdit(macroName, itemID, body, catKey)
     local idx = GetMacroIndexByName(macroName)
     if idx == 0 then
         -- CreateMacro signature: (name, icon, body, perCharacter)
-        -- Icon accepts fileID or texture path. Questionmark keeps the icon
-        -- slot empty-looking for unset macros; active macros adopt the
-        -- item's icon automatically because the body begins with
-        -- #showtooltip.
+        -- Icon accepts fileID or texture path. DEFAULT_ICON is the stored
+        -- fallback shown when the macro body has no resolvable /use or
+        -- /cast (empty-state). Active macros override it via the
+        -- #showtooltip directive, which adopts the item's icon.
         local numAcct = GetNumMacros()
         if numAcct >= MAX_ACCOUNT_MACROS then
             return "error", "account macro quota full (120)"
@@ -135,7 +136,11 @@ local function doEdit(macroName, itemID, body, catKey)
     -- EditMacro returns the macro index on success; 0 / nil indicates the
     -- edit was rejected (e.g. body failed validation). We use this signal to
     -- drive M-12's bounded retry.
-    local editedIdx = EditMacro(idx, nil, nil, body)
+    -- Pass DEFAULT_ICON on every edit so macros created by prior versions
+    -- (with the question-mark icon) migrate to the current fallback. For
+    -- active bodies the #showtooltip line overrides the stored icon, so
+    -- re-asserting the fallback here is safe.
+    local editedIdx = EditMacro(idx, nil, DEFAULT_ICON, body)
     if editedIdx == 0 or editedIdx == nil then
         return "error", "EditMacro returned no index"
     end

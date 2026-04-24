@@ -17,7 +17,6 @@ KCM.SEED = KCM.SEED or {}
 KCM.SEED.DRINK = {
     113509,  -- Conjured Mana Bun (mage conjured food) — top by default via the
              -- Ranker's conjured-bonus layer; user can demote / remove.
-    260264,  -- Quel'Danas Rations
     260261,  -- Bloom Nectar
     260260,  -- Springrunner Sparkling
     260259,  -- Everspring Water

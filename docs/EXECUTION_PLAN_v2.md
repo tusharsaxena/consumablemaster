@@ -185,10 +185,10 @@ Do **all** of the following on a test character. Record pass/fail per item; any 
 
 ## Post-M11 Checklist
 
-- ⬜ Merge or tag `v1.1.0` in git per the repo's release convention.
-- ⬜ Update `CLAUDE.md` only if any ground-rule changed (none of the M9–M11 changes are ground-rule-level; expect no edit here).
-- ⬜ Re-read [TODO.md](../TODO.md) "Deferred from PE review" block; confirm every deferred item is still correctly described and still deferred (not accidentally implemented or made obsolete by M9–M11).
-- ⬜ Archive `docs/PE_REVIEW.md` only if the user asks; by default keep it alongside v2 docs for historical reference.
+- ✅ Merge or tag `v1.1.0` in git per the repo's release convention.
+- ✅ Update `CLAUDE.md` only if any ground-rule changed (none of the M9–M11 changes are ground-rule-level; expect no edit here).
+- ✅ Re-read [TODO.md](../TODO.md) "Deferred from PE review" block; confirm every deferred item is still correctly described and still deferred (not accidentally implemented or made obsolete by M9–M11).
+- ✅ Archive `docs/PE_REVIEW.md` only if the user asks; by default keep it alongside v2 docs for historical reference.
 
 ---
 

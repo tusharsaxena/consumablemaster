@@ -16,13 +16,13 @@
 - ✅ Rename the entry in the Settings Panel to be Consumable Master instead of Ka0s Consumable Master. The addon name should be retained as Ka0s Consumable Master though. Do not rename the directory name. 
 - ✅ Add the ability to add an item or spell to each category. Achieve this by having a dropdown to select Item or Spell to the left of the inputbox. Add a validator to check whether a valid itemid or spellid has been entered. 
 - ✅ Add a confirmation dialog before adding an item or spell
-- ⬜ relook at seed lists and sort order
-- ⬜ check resync behavior
-- ⬜ test combat behavior
-- ⬜ test what happens when a specific consumable is exhausted
-- ⬜ Add support for vantus runes, weapon oils, whethstones and weightstones, jumper cables, drums, invis pots
-- ⬜ Add fallback icons for every category macro when empty (not the question mark)
-- ⬜ Change order of panel entries - food > drink > healing potion > mana potion > healthstone > flask > combat potion > stat food
+- ✅ check resync behavior
+- ✅ test combat behavior
+- ✅ test what happens when a specific consumable is exhausted
+- ✅ relook at seed lists and sort order
+- ✅ Add fallback icons for every category macro when empty (not the question mark)
+- ✅ Change order of panel entries - food > drink > healing potion > mana potion > healthstone > flask > combat potion > stat food
+- ⬜ Add new categories for vantus runes, weapon consambles (oils, whethstones and weightstones), jumper cables, drums, invis pots
 - ⬜ Add stat weights alongside stat priorities for primary and secondary stats to better improve ranking
 - ⬜ for every item, add a checkbox to disable a specific item from being picked by the macro. this will allow the user to preserve ordering without deleting the item altogether
 
