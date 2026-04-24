@@ -1,13 +1,13 @@
 # Ka0s Consumable Master
 
-An auto-managed consumable-macro addon for **World of Warcraft: Midnight** (Retail, Interface 120000). Keeps a fixed set of account-wide global macros pointed at the single best consumable currently in your bags, for eight categories — so you never rebuild a food / flask / potion macro again.
+![alt text](https://media.forgecdn.net/attachments/1646/103/consumemaster-logo-jpg.jpg)
+
+An auto-managed consumable-macro addon for **World of Warcraft: Midnight**. Keeps a fixed set of account-wide global macros pointed at the single best consumable currently in your bags, for eight categories — so you never rebuild a food / flask / potion macro again.
 
 **Slash prefix:** `/kcm`
 **Framework:** Ace3 (AceAddon, AceEvent, AceDB, AceConsole, AceConfig)
-**Version:** 0.1.0
+**Version:** 1.0.0
 **Locale:** English only
-
----
 
 ## What it does
 
@@ -26,13 +26,33 @@ Every time you loot a better food, swap spec, reload, or leave combat, Ka0s Cons
 
 Macro writes that would land during combat are queued and flushed on `PLAYER_REGEN_ENABLED` — the addon never calls a protected macro API in combat.
 
----
+## Screenshots
+
+***Settings Panel***
+
+![alt text](https://media.forgecdn.net/attachments/1646/104/kcm-01-general-png.png)
+
+***Stat Priority Selector (Per Spec)***
+
+![alt text](https://media.forgecdn.net/attachments/1646/105/kcm-02-statpriority-png.png)
+
+***Food Category Priority Selector***
+
+![alt text](https://media.forgecdn.net/attachments/1646/106/kcm-03-food-png.png)
+
+***Ranking Explainer***
+
+![alt text](https://media.forgecdn.net/attachments/1646/107/kcm-03-ranking-png.png)
 
 ## Usage
 
 1. Install the addon using the Addon Manager of choice, or manually
 2. Launch the game. The addon initializes on login — first `PLAYER_ENTERING_WORLD` scans bags, discovers known items, and writes all eight macros.
 3. Drag the new `KCM_*` macros onto your action bars from the macro UI (or use the draggable icon at the top of each category page in the settings panel).
+
+All settings live at **Escape → Options → AddOns → Consumable Master** (or `/kcm config`).
+
+## Slash commands
 
 | Command              | What it does                                                           |
 |----------------------|------------------------------------------------------------------------|
@@ -43,34 +63,6 @@ Macro writes that would land during combat are queued and flushed on `PLAYER_REG
 | `/kcm debug`         | Toggle verbose logging.                                                |
 | `/kcm version`       | Print the addon version.                                               |
 | `/kcm dump <target>` | Inspect internal state. Targets: `categories`, `statpriority`, `bags`, `item <id>`, `pick <catKey>`. |
-
----
-
-## How picking & ranking works
-
-Every recompute runs this pipeline per category:
-
-1. **Build the candidate set.** Union of three sources, minus the blocklist:
-   - `seed` — the shipped `defaults/Defaults_<CAT>.lua` list. Most entries are itemIDs, but a seed can also include spell entries (Recuperate is top-ranked in Food by default).
-   - `added` — items or spells you manually added via the settings panel.
-   - `discovered` — items auto-scanned from your bags that match the category's classifier rules (bag discovery is item-only; spells are never auto-discovered).
-   - `blocked` — entries you've removed with the × button. Subtracted from the union; auto-discovery won't re-add a blocked item.
-2. **Score every candidate.** A per-category scorer (`Ranker.lua`) reads the parsed tooltip and returns a number; higher is better. Signals per category:
-   - **Food / Drink:** flat heal/mana value + %-based restore (amplified so Midnight %-based food outranks flat tiers) + conjured bonus + ilvl + quality tiebreak.
-   - **HP potion / MP potion:** raw heal/mana value. **Immediate restores always outrank heal-over-time (HOT) pots, unless the HOT's amount beats the best immediate in the set by more than 20%.** Prevents a slightly-bigger HOT from winning over a smaller immediate (e.g. Amani Extract's 265,420 over 20 sec vs Silvermoon Health Potion's 241,303 instant — Silvermoon wins because the HOT isn't 20% bigger).
-   - **Stat Food / Combat Potion / Flask:** weighted sum of the tooltip's stat buffs against the active spec's stat priority. Primary-stat consumables always beat any secondary-stat ones; within secondary, earlier positions weigh more. Wildcard "highest secondary stat" buffs resolve against the spec's top secondary at rank time.
-   - **Healthstone:** hard-coded preference table (modern auto-leveling Healthstone > legacy fallback), + ilvl tiebreak.
-   - **Spell entries:** a fixed score that outranks every item. Spells never compete with items on value — so Recuperate sits above every food by default. You can pin items above a spell if you prefer.
-3. **Merge pins.** When you reorder rows with ↑ / ↓ in the settings panel, the addon writes pins of `{itemID, position}`. Pins override the Ranker order — pinned entries land at their requested position and non-pinned items fill the gaps in score order.
-4. **Walk the final list** for the first entry you actually own. Items check bag counts; spells check `IsPlayerSpell` (class / spec / talent-granted). That first-owned entry becomes the macro body. If you own none, the macro prints a friendly `KCM: no <category>` stub so the slot stays valid.
-
-Hovering the **blue info button** on any row shows the full per-item score breakdown (each contributing signal and a one-line summary of the scoring rule), so you can see exactly why an entry landed where it did.
-
----
-
-## Settings
-
-All settings live at **Escape → Options → AddOns → Consumable Master** (or `/kcm config`).
 
 ### General
 
@@ -102,15 +94,32 @@ Each of the eight categories has its own page in the tab list. Spec-aware pages 
   - **×** — remove the entry. Also blocks it so auto-discovery won't re-add it.
 - **Reset category** — with confirmation, clears this category's added / blocked / pinned entries (the viewed spec's bucket only, for spec-aware categories). Discovered items (from bag scans) are preserved.
 
----
+## How picking & ranking works
 
-## Docs
+Every recompute runs this pipeline per category:
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — short-form architecture map for orientation.
-- [CLAUDE.md](CLAUDE.md) — guidance for Claude Code / LLM-assisted sessions.
-- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) — what the addon does, category scope, constraints.
-- [docs/TECHNICAL_DESIGN.md](docs/TECHNICAL_DESIGN.md) — full internal design (module contracts, DB schema, events, tooltip parsing).
-- [docs/EXECUTION_PLAN.md](docs/EXECUTION_PLAN.md) — milestone plan / history.
-- [docs/RESEARCH.md](docs/RESEARCH.md) — notes on Blizzard APIs, Ace3 patterns, Midnight changes.
-- [docs/REFRESH_ITEMS.md](docs/REFRESH_ITEMS.md) — procedure for refreshing seed item lists each patch.
-- [defaults/README.md](defaults/README.md) — seed data layout and source citations.
+1. **Build the candidate set.** Union of three sources, minus the blocklist:
+   - `seed` — the shipped `defaults/Defaults_<CAT>.lua` list. Most entries are itemIDs, but a seed can also include spell entries (Recuperate is top-ranked in Food by default).
+   - `added` — items or spells you manually added via the settings panel.
+   - `discovered` — items auto-scanned from your bags that match the category's classifier rules (bag discovery is item-only; spells are never auto-discovered).
+   - `blocked` — entries you've removed with the × button. Subtracted from the union; auto-discovery won't re-add a blocked item.
+2. **Score every candidate.** A per-category scorer (`Ranker.lua`) reads the parsed tooltip and returns a number; higher is better. Signals per category:
+   - **Food / Drink:** flat heal/mana value + %-based restore (amplified so Midnight %-based food outranks flat tiers) + conjured bonus + ilvl + quality tiebreak.
+   - **HP potion / MP potion:** raw heal/mana value. **Immediate restores always outrank heal-over-time (HOT) pots, unless the HOT's amount beats the best immediate in the set by more than 20%.** Prevents a slightly-bigger HOT from winning over a smaller immediate (e.g. Amani Extract's 265,420 over 20 sec vs Silvermoon Health Potion's 241,303 instant — Silvermoon wins because the HOT isn't 20% bigger).
+   - **Stat Food / Combat Potion / Flask:** weighted sum of the tooltip's stat buffs against the active spec's stat priority. Primary-stat consumables always beat any secondary-stat ones; within secondary, earlier positions weigh more. Wildcard "highest secondary stat" buffs resolve against the spec's top secondary at rank time.
+   - **Healthstone:** hard-coded preference table (modern auto-leveling Healthstone > legacy fallback), + ilvl tiebreak.
+   - **Spell entries:** a fixed score that outranks every item. Spells never compete with items on value — so Recuperate sits above every food by default. You can pin items above a spell if you prefer.
+3. **Merge pins.** When you reorder rows with ↑ / ↓ in the settings panel, the addon writes pins of `{itemID, position}`. Pins override the Ranker order — pinned entries land at their requested position and non-pinned items fill the gaps in score order.
+4. **Walk the final list** for the first entry you actually own. Items check bag counts; spells check `IsPlayerSpell` (class / spec / talent-granted). That first-owned entry becomes the macro body. If you own none, the macro prints a friendly `KCM: no <category>` stub so the slot stays valid.
+
+Hovering the **blue info button** on any row shows the full per-item score breakdown (each contributing signal and a one-line summary of the scoring rule), so you can see exactly why an entry landed where it did.
+
+## Compatibility
+
+- Retail WoW (Interface version 120000+)
+
+## Version History
+
+**v1.0.0**
+
+*   Initial Release … yay!

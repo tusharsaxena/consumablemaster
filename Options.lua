@@ -229,6 +229,19 @@ end
 
 local function buildGeneralArgs()
     return {
+        title = {
+            type  = "description",
+            order = 0,
+            name  = "General",
+            dialogControl = "KCMTitle",
+        },
+        titleSpacer = {
+            type  = "description",
+            order = 0.5,
+            name  = " ",
+            fontSize = "medium",
+        },
+
         debug = {
             type  = "toggle",
             order = 1,
@@ -932,6 +945,26 @@ function O.Register()
     local frame, categoryID = AceConfigDialog:AddToBlizOptions(REGISTRY_KEY, PANEL_TITLE)
     KCM._settingsCategoryFrame = frame
     KCM._settingsCategoryID    = categoryID or (frame and frame.name) or nil
+
+    -- BlizOptionsGroup renders the panel title ("Consumable Master") in
+    -- GameFontNormalLarge (~14pt), which is smaller than our per-page KCMTitle
+    -- headers (22pt). Bump it to 24pt gold so the addon title is the dominant
+    -- top-level heading and clearly outranks the page headers below it. We
+    -- also push the content area down to make room for the taller label.
+    local widget = frame and frame.obj
+    if widget and widget.label then
+        widget.label:SetFont(STANDARD_TEXT_FONT, 24, "")
+        widget.label:SetTextColor(1, 0.82, 0)
+        widget.label:ClearAllPoints()
+        widget.label:SetPoint("TOPLEFT", 10, -12)
+        widget.label:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 10, -50)
+        if widget.content then
+            widget.content:ClearAllPoints()
+            widget.content:SetPoint("TOPLEFT", 10, -55)
+            widget.content:SetPoint("BOTTOMRIGHT", -10, 10)
+        end
+    end
+
     return true
 end
 
