@@ -2,7 +2,7 @@
 ## Title: Ka0s Consumable Master
 ## Notes: Auto-managed account-wide consumable macros for WoW Midnight.
 ## Author: Ka0s
-## Version: 1.0.0
+## Version: 1.1.0
 ## SavedVariables: ConsumableMasterDB
 ## IconTexture: Interface\Icons\inv_cooking_100_roastduck
 

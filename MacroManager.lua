@@ -15,9 +15,14 @@ KCM.MacroManager = KCM.MacroManager or {}
 local M = KCM.MacroManager
 
 local MAX_ACCOUNT_MACROS   = 120
-local MAX_CHARACTER_MACROS = 18
 local MACRO_BODY_LIMIT     = 255   -- Blizzard hard cap
+local MAX_FLUSH_ATTEMPTS   = 3
 local DEFAULT_ICON         = "INV_Misc_QuestionMark"
+
+-- One-shot gate per category so a chronic oversize doesn't spam chat on
+-- every recompute. Cleared only on /reload — that's a feature: the user
+-- reported it once, further noise is waste.
+local alreadyWarnedOversized = {}
 
 -- ---------------------------------------------------------------------------
 -- Body builders
@@ -80,7 +85,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Combat-deferral queue
 -- ---------------------------------------------------------------------------
--- pendingUpdates[macroName] = { body = "...", itemID = N | nil, catKey = "..." }
+-- pendingUpdates[macroName] = { body, itemID, catKey, attempts }
 -- Last write wins — if the body changes again before PLAYER_REGEN_ENABLED, we
 -- only apply the final version, which matches the documented goal of
 -- coalescing bag flurries into a single macro write.
@@ -118,7 +123,7 @@ local function doEdit(macroName, itemID, body, catKey)
         -- slot empty-looking for unset macros; active macros adopt the
         -- item's icon automatically because the body begins with
         -- #showtooltip.
-        local numAcct, numChar = GetNumMacros()
+        local numAcct = GetNumMacros()
         if numAcct >= MAX_ACCOUNT_MACROS then
             return "error", "account macro quota full (120)"
         end
@@ -127,7 +132,13 @@ local function doEdit(macroName, itemID, body, catKey)
         if idx == 0 then return "error", "CreateMacro did not produce an index" end
         return "created"
     end
-    EditMacro(idx, nil, nil, body)
+    -- EditMacro returns the macro index on success; 0 / nil indicates the
+    -- edit was rejected (e.g. body failed validation). We use this signal to
+    -- drive M-12's bounded retry.
+    local editedIdx = EditMacro(idx, nil, nil, body)
+    if editedIdx == 0 or editedIdx == nil then
+        return "error", "EditMacro returned no index"
+    end
     return "edited"
 end
 
@@ -146,18 +157,48 @@ function M.SetMacro(macroName, itemID, catKey)
 
     local body = M.BuildBody(catKey, itemID)
     if #body > MACRO_BODY_LIMIT then
-        body = body:sub(1, MACRO_BODY_LIMIT)
+        -- Silent truncation corrupted the macro (e.g. half a /cast line), so
+        -- swap to the category's empty-state body and surface the problem
+        -- once per catKey per session. Full oversized body goes to Debug for
+        -- troubleshooting.
+        local cat = KCM.Categories and KCM.Categories.Get and KCM.Categories.Get(catKey)
+        if KCM.Debug and KCM.Debug.Print then
+            KCM.Debug.Print("MacroManager: %s body exceeds %d bytes: %s",
+                tostring(catKey), MACRO_BODY_LIMIT, body)
+        end
+        if catKey and not alreadyWarnedOversized[catKey] then
+            alreadyWarnedOversized[catKey] = true
+            print(("|cffff8800[KCM]|r %s macro body exceeds 255 bytes — macro is inert until the picked entry's body fits. Please report this."):format(catKey))
+        end
+        body = buildEmptyBody(cat)
     end
 
     KCM.db.profile.macroState = KCM.db.profile.macroState or {}
-    local state = KCM.db.profile.macroState[macroName]
-    if state and state.lastBody == body and (pendingUpdates[macroName] == nil) then
+    local state   = KCM.db.profile.macroState[macroName]
+    local pending = pendingUpdates[macroName]
+
+    -- If a pending write is queued but already matches the current on-disk
+    -- body, drop it — the queued EditMacro would be redundant.
+    if state and state.lastBody == body and pending and pending.body == body then
+        pendingUpdates[macroName] = nil
+        return "unchanged"
+    end
+    if state and state.lastBody == body and pending == nil then
         -- Same body and no pending write in flight → nothing to do.
         return "unchanged"
     end
 
     if InCombatLockdown and InCombatLockdown() then
-        pendingUpdates[macroName] = { body = body, itemID = itemID, catKey = catKey }
+        -- Preserve `attempts` across re-queues during a single combat window
+        -- so a bad EditMacro doesn't reset its retry counter on every new
+        -- pipeline run before PLAYER_REGEN_ENABLED fires.
+        local attempts = pending and pending.attempts or 0
+        pendingUpdates[macroName] = {
+            body     = body,
+            itemID   = itemID,
+            catKey   = catKey,
+            attempts = attempts,
+        }
         if KCM.Debug and KCM.Debug.Print then
             KCM.Debug.Print("MacroManager: deferred %s (combat)", macroName)
         end
@@ -188,10 +229,10 @@ end
 -- ---------------------------------------------------------------------------
 -- FlushPending — called from PLAYER_REGEN_ENABLED handler.
 -- ---------------------------------------------------------------------------
--- Replays every queued body. Because doEdit only calls EditMacro /
--- CreateMacro, both of which are safe after regen, a taint-free macro update
--- lands here. Clears the queue atomically (after each successful edit) so a
--- mid-flush error leaves the remaining items queued for the next regen.
+-- Replays every queued body. Each entry carries `attempts`; after
+-- MAX_FLUSH_ATTEMPTS failed writes we give up on that macro and emit a
+-- one-time chat error so the user can diagnose. Bounding retries prevents a
+-- persistently-failing macro from re-queueing forever on every combat cycle.
 
 function M.FlushPending()
     if InCombatLockdown and InCombatLockdown() then
@@ -203,8 +244,20 @@ function M.FlushPending()
     local applied = 0
     local still = {}
     for name, entry in pairs(pendingUpdates) do
-        local result = M.SetMacro(name, entry.itemID, entry.catKey)
-        if result == "deferred" or result == "error" then
+        local ok, result = pcall(M.SetMacro, name, entry.itemID, entry.catKey)
+        if not ok or result == "error" then
+            entry.attempts = (entry.attempts or 0) + 1
+            if entry.attempts >= MAX_FLUSH_ATTEMPTS then
+                print(("|cffff8800[KCM]|r gave up on %s after %d failed writes — check /kcm debug output."):format(name, entry.attempts))
+                if KCM.Debug and KCM.Debug.Print then
+                    KCM.Debug.Print("FlushPending: dropped %s after %d attempts (last err=%s)",
+                        name, entry.attempts, tostring(result))
+                end
+            else
+                still[name] = entry
+            end
+        elseif result == "deferred" then
+            -- Combat re-entered mid-flush; preserve entry as-is.
             still[name] = entry
         else
             applied = applied + 1

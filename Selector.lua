@@ -6,7 +6,8 @@
 --   seed[cat]      : flat array of itemIDs in KCM.SEED[catKey]
 --   added[cat]     : set  KCM.db.profile.categories[cat].added[itemID] = true
 --   blocked[cat]   : set  KCM.db.profile.categories[cat].blocked[itemID] = true
---   discovered[cat]: set  KCM.db.profile.categories[cat].discovered[itemID] = true
+--   discovered[cat]: map  KCM.db.profile.categories[cat].discovered[itemID] = unixTimestamp
+--                    (v1.0.0 stored `true`; reader treats both as "present")
 --   pins[cat]      : array of { itemID = X, position = N }
 --
 -- Spec-aware categories (STAT_FOOD, CMBT_POT, FLASK) swap the four fields for
@@ -189,7 +190,7 @@ end
 -- STAT_FOOD / CMBT_POT / FLASK) → pin merge. Returns an array of itemIDs
 -- ordered by effective rank (best first).
 
-function S.GetEffectivePriority(catKey, specKey)
+function S.GetEffectivePriority(catKey, specKey, scoreCache)
     local cat = KCM.Categories and KCM.Categories.Get and KCM.Categories.Get(catKey)
     if not cat then return {} end
 
@@ -213,7 +214,7 @@ function S.GetEffectivePriority(catKey, specKey)
 
     local sorted = candidates
     if KCM.Ranker and KCM.Ranker.SortCandidates then
-        sorted = KCM.Ranker.SortCandidates(catKey, candidates, ctx) or candidates
+        sorted = KCM.Ranker.SortCandidates(catKey, candidates, ctx, scoreCache) or candidates
     end
 
     return mergePins(sorted, bucket.pins)
@@ -227,8 +228,8 @@ end
 -- if available, otherwise falls back to C_Item.GetItemCount so the function
 -- remains usable in unit tests with a stubbed environment.
 
-function S.PickBestForCategory(catKey, specKey)
-    local priority = S.GetEffectivePriority(catKey, specKey)
+function S.PickBestForCategory(catKey, specKey, scoreCache)
+    local priority = S.GetEffectivePriority(catKey, specKey, scoreCache)
     if #priority == 0 then return nil end
 
     local hasItem = KCM.BagScanner and KCM.BagScanner.HasItem
@@ -241,9 +242,7 @@ function S.PickBestForCategory(catKey, specKey)
             if spellID and IsPlayerSpell and IsPlayerSpell(spellID) then
                 return id
             end
-        elseif hasItem then
-            if hasItem(id) then return id end
-        elseif C_Item and C_Item.GetItemCount and C_Item.GetItemCount(id, false) > 0 then
+        elseif hasItem and hasItem(id) then
             return id
         end
     end
@@ -287,16 +286,22 @@ end
 
 -- Add a user-supplied itemID (or spell sentinel via KCM.ID.AsSpell) to the
 -- candidate set. Also clears a blocklist entry if present so the add is
--- always visible. Returns true on new entry. The bucket tables are keyed by
--- opaque numeric IDs, so a negative (spell) key works identically to a
--- positive (item) one through the rest of the pipeline.
+-- always visible. Returns true if either the unblock or the add changed
+-- state — callers gate recompute on this, so unblocking a previously-blocked
+-- item must return true even when `added[itemID]` was already set.
 function S.AddItem(catKey, itemID, specKey)
     local bucket = S.GetBucket(catKey, specKey)
     if not bucket or not itemID then return false end
-    bucket.blocked[itemID] = nil
-    if bucket.added[itemID] then return false end
-    bucket.added[itemID] = true
-    return true
+    local changed = false
+    if bucket.blocked[itemID] then
+        bucket.blocked[itemID] = nil
+        changed = true
+    end
+    if not bucket.added[itemID] then
+        bucket.added[itemID] = true
+        changed = true
+    end
+    return changed
 end
 
 -- Mark an item as blocked so it's excluded from the candidate set. Also drops
@@ -315,16 +320,82 @@ function S.Block(catKey, itemID, specKey)
     return true
 end
 
--- Record that an item was seen in bags (auto-discovery). Idempotent; only
--- writes if we haven't already seen it, avoiding unnecessary SavedVariables
--- churn on every bag scan. Spells can't be bag-discovered; guard anyway.
-function S.MarkDiscovered(catKey, itemID, specKey)
+-- Record that an item was seen in bags (auto-discovery). Spells can't be
+-- bag-discovered; guard anyway. Blocked items are never promoted to
+-- discovered (user intent overrides). The stored value is a unix timestamp
+-- used by SweepStaleDiscovered's 30-day TTL; legacy `true` values from v1.0.0
+-- are overwritten on next sighting. Returns true only when the entry is
+-- newly created — timestamp bumps return false so callers don't trigger a
+-- spurious UI refresh on every bag scan.
+function S.MarkDiscovered(catKey, itemID, specKey, nowUnix)
     local bucket = S.GetBucket(catKey, specKey)
     if not bucket or not itemID then return false end
     if KCM.ID and KCM.ID.IsSpell(itemID) then return false end
-    if bucket.discovered[itemID] or bucket.blocked[itemID] then return false end
-    bucket.discovered[itemID] = true
-    return true
+    if bucket.blocked[itemID] then return false end
+    nowUnix = nowUnix or time()
+    local current = bucket.discovered[itemID]
+    if current == nil then
+        bucket.discovered[itemID] = nowUnix
+        return true
+    end
+    -- Legacy `true` or an older timestamp → bump to now. Idempotent for
+    -- already-current entries so we don't dirty SavedVariables every scan.
+    if current == true or (type(current) == "number" and current < nowUnix) then
+        bucket.discovered[itemID] = nowUnix
+    end
+    return false
+end
+
+-- TTL garbage collection for `discovered` entries. Called from PEW after
+-- auto-discovery and before the first recompute (see Core.lua). Items still
+-- in bags have their timestamp bumped to now; otherwise entries older than
+-- DISCOVERED_TTL_SEC are deleted. `added` and `blocked` are user-intentional
+-- and never touched here.
+local DISCOVERED_TTL_SEC = 30 * 86400
+
+local function sweepBucket(bucket, bagCounts, nowUnix, cutoff)
+    if not (bucket and bucket.discovered) then return 0 end
+    local swept = 0
+    for id, value in pairs(bucket.discovered) do
+        if bagCounts[id] and bagCounts[id] > 0 then
+            bucket.discovered[id] = nowUnix
+        else
+            local staleTs = (value == true) and 0 or (type(value) == "number" and value or 0)
+            if staleTs < cutoff then
+                bucket.discovered[id] = nil
+                swept = swept + 1
+            end
+        end
+    end
+    return swept
+end
+
+function S.SweepStaleDiscovered(nowUnix)
+    if not (KCM.db and KCM.db.profile and KCM.db.profile.categories) then
+        return 0, 0
+    end
+    nowUnix = nowUnix or time()
+    local cutoff = nowUnix - DISCOVERED_TTL_SEC
+    local bagCounts = (KCM.BagScanner and KCM.BagScanner.Scan and KCM.BagScanner.Scan()) or {}
+    local totalSwept, touchedCats = 0, 0
+    for _, root in pairs(KCM.db.profile.categories) do
+        local catSwept = 0
+        if root.bySpec then
+            for _, specBucket in pairs(root.bySpec) do
+                catSwept = catSwept + sweepBucket(specBucket, bagCounts, nowUnix, cutoff)
+            end
+        else
+            catSwept = catSwept + sweepBucket(root, bagCounts, nowUnix, cutoff)
+        end
+        if catSwept > 0 then
+            totalSwept = totalSwept + catSwept
+            touchedCats = touchedCats + 1
+        end
+    end
+    if KCM.Debug and KCM.Debug.Print then
+        KCM.Debug.Print("GC: swept %d entries across %d categories", totalSwept, touchedCats)
+    end
+    return totalSwept, touchedCats
 end
 
 -- Internal helper: given the current effective priority and a direction (-1

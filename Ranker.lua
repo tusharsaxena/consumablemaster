@@ -57,10 +57,25 @@ local PRIMARY_WEIGHT = 1000
 -- Item-info helpers
 -- ---------------------------------------------------------------------------
 
-local function itemFields(itemID)
+-- `scoreCache.fields[id]` memoizes a single GetItemInfo + TooltipCache.Get
+-- result across every scorer call that touches the same itemID within one
+-- Pipeline.Recompute pass. Callers that pass `scoreCache = nil` get the
+-- original uncached path — keeps /kcm dump, Explain, and panel renders
+-- behaviour-identical.
+local function itemFields(itemID, scoreCache)
+    if scoreCache and scoreCache.fields and scoreCache.fields[itemID] then
+        local f = scoreCache.fields[itemID]
+        return f.quality, f.ilvl, f.subType, f.tt
+    end
     local _, _, quality, ilvl, _, _, subType = GetItemInfo(itemID)
+    quality = quality or 0
+    ilvl    = ilvl or 0
+    subType = subType or ""
     local tt = (KCM.TooltipCache and KCM.TooltipCache.Get(itemID)) or {}
-    return quality or 0, ilvl or 0, subType or "", tt
+    if scoreCache and scoreCache.fields then
+        scoreCache.fields[itemID] = { quality = quality, ilvl = ilvl, subType = subType, tt = tt }
+    end
+    return quality, ilvl, subType, tt
 end
 
 -- Weight of a single stat given the active spec's priority.
@@ -117,11 +132,16 @@ end
 -- only earns the bonus when its amount exceeds this value by more than
 -- HOT_OVER_IMMEDIATE_PCT. When there are no immediate pots in the set the
 -- return is 0, which makes every HOT qualify (nothing to lose against).
-local function bestImmediateAmount(kind, itemIDs)
+local function bestImmediateAmount(kind, itemIDs, scoreCache)
     local best = 0
     for _, id in ipairs(itemIDs or {}) do
         if not (KCM.ID and KCM.ID.IsSpell(id)) then
-            local tt = KCM.TooltipCache and KCM.TooltipCache.Get(id) or nil
+            local tt
+            if scoreCache and scoreCache.fields and scoreCache.fields[id] then
+                tt = scoreCache.fields[id].tt
+            else
+                tt = KCM.TooltipCache and KCM.TooltipCache.Get(id) or nil
+            end
             if tt and potIsImmediate(tt, kind) then
                 local amt = potAmount(tt, kind)
                 if amt > best then best = amt end
@@ -163,8 +183,8 @@ end
 -- ---------------------------------------------------------------------------
 
 local scorers = {
-    FOOD = function(itemID)
-        local quality, ilvl, _, tt = itemFields(itemID)
+    FOOD = function(itemID, ctx, scoreCache)
+        local quality, ilvl, _, tt = itemFields(itemID, scoreCache)
         return (tt.healValue or 0)
              + (tt.healValueAvg or 0)
              + (tt.healPct or 0) * PCT_WEIGHT
@@ -172,8 +192,8 @@ local scorers = {
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
-    DRINK = function(itemID)
-        local quality, ilvl, _, tt = itemFields(itemID)
+    DRINK = function(itemID, ctx, scoreCache)
+        local quality, ilvl, _, tt = itemFields(itemID, scoreCache)
         return (tt.manaValue or 0)
              + (tt.manaValueAvg or 0)
              + (tt.manaPct or 0) * PCT_WEIGHT
@@ -181,8 +201,8 @@ local scorers = {
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
-    HP_POT = function(itemID, ctx)
-        local quality, ilvl, _, tt = itemFields(itemID)
+    HP_POT = function(itemID, ctx, scoreCache)
+        local quality, ilvl, _, tt = itemFields(itemID, scoreCache)
         local bonus = qualifiesForImmediateBonus(tt, "HP", ctx) and IMMEDIATE_POT_BONUS or 0
         return (tt.healValueAvg or 0)
              + (tt.healValue or 0)
@@ -190,8 +210,8 @@ local scorers = {
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
-    MP_POT = function(itemID, ctx)
-        local quality, ilvl, _, tt = itemFields(itemID)
+    MP_POT = function(itemID, ctx, scoreCache)
+        local quality, ilvl, _, tt = itemFields(itemID, scoreCache)
         local bonus = qualifiesForImmediateBonus(tt, "MP", ctx) and IMMEDIATE_POT_BONUS or 0
         return (tt.manaValueAvg or 0)
              + (tt.manaValue or 0)
@@ -199,24 +219,24 @@ local scorers = {
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
-    HS = function(itemID)
-        local _, ilvl = itemFields(itemID)
+    HS = function(itemID, ctx, scoreCache)
+        local _, ilvl = itemFields(itemID, scoreCache)
         return (HEALTHSTONE_PREFERENCE[itemID] or 0) + ilvl
     end,
-    STAT_FOOD = function(itemID, ctx)
-        local quality, ilvl, _, tt = itemFields(itemID)
+    STAT_FOOD = function(itemID, ctx, scoreCache)
+        local quality, ilvl, _, tt = itemFields(itemID, scoreCache)
         return scoreByStatPriority(tt, ctx and ctx.specPriority)
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
-    CMBT_POT = function(itemID, ctx)
-        local quality, ilvl, _, tt = itemFields(itemID)
+    CMBT_POT = function(itemID, ctx, scoreCache)
+        local quality, ilvl, _, tt = itemFields(itemID, scoreCache)
         return scoreByStatPriority(tt, ctx and ctx.specPriority)
              + ilvl
              + quality * QUALITY_WEIGHT
     end,
-    FLASK = function(itemID, ctx)
-        local quality, ilvl, _, tt = itemFields(itemID)
+    FLASK = function(itemID, ctx, scoreCache)
+        local quality, ilvl, _, tt = itemFields(itemID, scoreCache)
         return scoreByStatPriority(tt, ctx and ctx.specPriority)
              + ilvl
              + quality * QUALITY_WEIGHT
@@ -233,12 +253,23 @@ local scorers = {
 -- unpinned Ranker baseline.
 local SPELL_SCORE = 1e9
 
-function R.Score(catKey, itemID, ctx)
+function R.Score(catKey, itemID, ctx, scoreCache)
     if not catKey or not itemID then return 0 end
     if KCM.ID and KCM.ID.IsSpell(itemID) then return SPELL_SCORE end
+    if scoreCache then
+        local catCache = scoreCache[catKey]
+        if catCache and catCache[itemID] ~= nil then
+            return catCache[itemID]
+        end
+    end
     local fn = scorers[catKey]
     if not fn then return 0 end
-    return fn(itemID, ctx) or 0
+    local score = fn(itemID, ctx, scoreCache) or 0
+    if scoreCache then
+        scoreCache[catKey] = scoreCache[catKey] or {}
+        scoreCache[catKey][itemID] = score
+    end
+    return score
 end
 
 -- Build a Ranker ctx for a given candidate set, augmenting `existing` if
@@ -248,12 +279,12 @@ end
 -- Callers that invoke R.Score per item (e.g. the /kcm dump pick debug view)
 -- should route through here so displayed scores match what SortCandidates
 -- produced.
-function R.BuildContext(catKey, itemIDs, existing)
+function R.BuildContext(catKey, itemIDs, existing, scoreCache)
     local ctx = existing or {}
     if catKey == "HP_POT" then
-        ctx.bestImmediateAmount = bestImmediateAmount("HP", itemIDs)
+        ctx.bestImmediateAmount = bestImmediateAmount("HP", itemIDs, scoreCache)
     elseif catKey == "MP_POT" then
-        ctx.bestImmediateAmount = bestImmediateAmount("MP", itemIDs)
+        ctx.bestImmediateAmount = bestImmediateAmount("MP", itemIDs, scoreCache)
     end
     return ctx
 end
@@ -261,11 +292,11 @@ end
 -- Returns two values:
 --   1. sorted array of itemIDs (highest score first)
 --   2. parallel array of { id, score } rows — handy for debug dumps
-function R.SortCandidates(catKey, itemIDs, ctx)
-    ctx = R.BuildContext(catKey, itemIDs, ctx)
+function R.SortCandidates(catKey, itemIDs, ctx, scoreCache)
+    ctx = R.BuildContext(catKey, itemIDs, ctx, scoreCache)
     local rows = {}
     for _, id in ipairs(itemIDs or {}) do
-        table.insert(rows, { id = id, score = R.Score(catKey, id, ctx) })
+        table.insert(rows, { id = id, score = R.Score(catKey, id, ctx, scoreCache) })
     end
     table.sort(rows, function(a, b)
         if a.score == b.score then return a.id < b.id end
@@ -405,6 +436,7 @@ function R.Explain(catKey, itemID, ctx)
 end
 
 -- Expose helpers for tests / debug code that wants per-signal insight.
-R._statWeight                = statWeight
-R._scoreByStatPriority       = scoreByStatPriority
+R._scorers                    = scorers
+R._statWeight                 = statWeight
+R._scoreByStatPriority        = scoreByStatPriority
 R._qualifiesForImmediateBonus = qualifiesForImmediateBonus

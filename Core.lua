@@ -5,7 +5,7 @@ local ADDON_NAME = "ConsumableMaster"
 local KCM = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.KCM = KCM
 
-KCM.VERSION = "1.0.0"
+KCM.VERSION = "1.1.0"
 
 -- Priority-list entries are opaque numeric IDs. Positive = itemID; negative
 -- is a spell-sentinel whose absolute value is the spellID. Using a disjoint
@@ -66,13 +66,13 @@ end
 KCM.Pipeline = KCM.Pipeline or {}
 local P = KCM.Pipeline
 
-function P.RecomputeOne(catKey, reason)
+function P.RecomputeOne(catKey, scoreCache, reason)
     if not KCM.Categories or not KCM.Selector or not KCM.MacroManager then
         return
     end
     local cat = KCM.Categories.Get and KCM.Categories.Get(catKey)
     if not cat then return end
-    local pick = KCM.Selector.PickBestForCategory(catKey)
+    local pick = KCM.Selector.PickBestForCategory(catKey, nil, scoreCache)
     KCM.MacroManager.SetMacro(cat.macroName, pick, catKey)
     -- Verbose per-category recompute log is commented out — it fires N×M
     -- times during login (N categories × M GET_ITEM_INFO_RECEIVED events)
@@ -85,8 +85,20 @@ end
 
 function P.Recompute(reason)
     if not KCM.Categories or not KCM.Categories.LIST then return end
+    -- Per-pass score cache. `fields[id]` memoizes GetItemInfo +
+    -- TooltipCache.Get so items appearing across multiple categories (pot
+    -- HOT scans, overlapping seeds) don't re-parse tooltips. `[catKey][id]`
+    -- memoizes the per-category score. Passing nil (as /kcm dump / panel
+    -- renders do) falls back to the uncached path.
+    local scoreCache = { fields = {} }
     for _, cat in ipairs(KCM.Categories.LIST) do
-        P.RecomputeOne(cat.key, reason)
+        -- Isolate each category so one bad scorer can't break the other
+        -- seven macros. One pcall per category per recompute (8 per frame
+        -- at peak) is cheap.
+        local ok, err = pcall(P.RecomputeOne, cat.key, scoreCache, reason)
+        if not ok and KCM.Debug and KCM.Debug.Print then
+            KCM.Debug.Print("Recompute %s failed: %s", cat.key, tostring(err))
+        end
     end
     -- Event-driven panel updates go through the debounced RequestRefresh so
     -- that a burst of GET_ITEM_INFO_RECEIVED events (dozens during first
@@ -136,7 +148,7 @@ end
 -- false for items whose tooltip isn't loaded yet. Without the retry, an
 -- item present in bags from /reload silently gets skipped on first
 -- discovery pass and never re-enters the candidate set until bags change.
-local function discoverOne(itemID, reason)
+local function discoverOne(itemID, reason, nowUnix)
     if not (itemID and KCM.Classifier and KCM.Classifier.MatchAny
             and KCM.Selector and KCM.Selector.MarkDiscovered) then
         return 0
@@ -149,6 +161,7 @@ local function discoverOne(itemID, reason)
         KCM.Debug.Print("discoverOne: id=%d no category match (reason=%s)",
             itemID, tostring(reason))
     end
+    nowUnix = nowUnix or time()
     for _, catKey in ipairs(hits) do
         local cat = KCM.Categories.Get(catKey)
         local inSeed = false
@@ -162,7 +175,7 @@ local function discoverOne(itemID, reason)
                 local _, _, key = KCM.SpecHelper.GetCurrent()
                 specKey = key
             end
-            if KCM.Selector.MarkDiscovered(catKey, itemID, specKey) then
+            if KCM.Selector.MarkDiscovered(catKey, itemID, specKey, nowUnix) then
                 added = added + 1
                 if KCM.Debug and KCM.Debug.Print then
                     KCM.Debug.Print("Discovered: %s id=%d (reason=%s)",
@@ -178,8 +191,9 @@ local function runAutoDiscovery(reason)
     if not (KCM.BagScanner and KCM.Classifier) then return 0 end
     local counts = KCM.BagScanner.Scan()
     local discovered = 0
+    local nowUnix = time()
     for id in pairs(counts) do
-        discovered = discovered + discoverOne(id, reason)
+        discovered = discovered + discoverOne(id, reason, nowUnix)
     end
     return discovered
 end
@@ -223,7 +237,13 @@ end
 
 function KCM:OnPlayerEnteringWorld()
     -- Fires on login and /reload. Discover + recompute everything.
+    -- Sweep runs after discovery so bumped timestamps are seen by the sweep
+    -- and before recompute so the cleaned-up discovered set feeds the first
+    -- pick.
     runAutoDiscovery("player_entering_world")
+    if KCM.Selector and KCM.Selector.SweepStaleDiscovered then
+        KCM.Selector.SweepStaleDiscovered(time())
+    end
     KCM.Pipeline.RequestRecompute("player_entering_world")
 end
 
@@ -271,6 +291,14 @@ function KCM:OnItemInfoReceived(event, itemID, success)
     end
 end
 
+function KCM:OnLearnedSpellInTab()
+    -- Closes the narrow window where spellNameFor() returned nil during a
+    -- macro write because the spell book hadn't hydrated yet, but the spell
+    -- becomes known later in the same session without a spec change or bag
+    -- event. Coalesced through RequestRecompute → one frame, one pipeline.
+    KCM.Pipeline.RequestRecompute("learned_spell")
+end
+
 function KCM:OnEnable()
     self:RegisterEvent("PLAYER_ENTERING_WORLD",         "OnPlayerEnteringWorld")
     self:RegisterEvent("BAG_UPDATE_DELAYED",            "OnBagUpdateDelayed")
@@ -278,4 +306,5 @@ function KCM:OnEnable()
     self:RegisterEvent("PLAYER_REGEN_DISABLED",         "OnRegenDisabled")
     self:RegisterEvent("PLAYER_REGEN_ENABLED",          "OnRegenEnabled")
     self:RegisterEvent("GET_ITEM_INFO_RECEIVED",        "OnItemInfoReceived")
+    self:RegisterEvent("LEARNED_SPELL_IN_TAB",          "OnLearnedSpellInTab")
 end

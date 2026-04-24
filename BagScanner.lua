@@ -33,7 +33,9 @@ function BS.Scan()
         local slots = getNum(bag) or 0
         for slot = 1, slots do
             local info = getInfo(bag, slot)
-            if info and info.itemID and not info.isLocked then
+            -- Locked items (mailing, splitting, equipping) are still owned;
+            -- excluding them causes transient macro flap on stack-lock events.
+            if info and info.itemID then
                 local id = info.itemID
                 local stack = info.stackCount or 1
                 counts[id] = (counts[id] or 0) + stack
@@ -44,16 +46,13 @@ function BS.Scan()
     return counts
 end
 
--- Lightweight single-item lookup. O(bags * slots); acceptable for slash
--- commands and tests. The Pipeline uses Scan() + table lookups instead.
+-- O(1) single-item lookup via Blizzard's own bag tally. Called hundreds of
+-- times during the first-panel-open GET_ITEM_INFO_RECEIVED burst, so the
+-- previous full-Scan fallback would have made that burst O(N*bags*slots).
 function BS.HasItem(itemID)
     if not itemID then return false, 0 end
-    local count = C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, false, false, true)
-    if count and count > 0 then return true, count end
-    -- Fallback: linear scan (handles edge cases where GetItemCount lags).
-    local counts = BS.Scan()
-    local c = counts[itemID] or 0
-    return c > 0, c
+    local count = C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, false, false, true) or 0
+    return count > 0, count
 end
 
 -- Flat array of itemIDs currently in bags. Convenient for iteration; callers

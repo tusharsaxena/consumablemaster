@@ -37,17 +37,22 @@ local function macroIcon(index)
     return icon or FALLBACK_ICON
 end
 
--- Prefer the item tooltip if MacroManager has recorded an itemID for this
--- slot (the live /use target). Fall back to the macro name + body so the
--- tooltip still says something useful for empty-state macros.
+-- Prefer the real in-game tooltip if MacroManager has recorded an ID for this
+-- slot. `lastItemID` holds an opaque KCM ID — positive itemIDs route to
+-- SetItemByID, negative spell sentinels route to SetSpellByID. Anything else
+-- (empty-state macros, unresolved picks) falls back to the macro name + body.
 local function showMacroTooltip(owner, macroName, index)
     GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     local KCM = _G.KCM
     local state = KCM and KCM.db and KCM.db.profile and KCM.db.profile.macroState
     local entry = state and state[macroName]
-    local itemID = entry and entry.lastItemID
-    if itemID and GameTooltip.SetItemByID then
-        GameTooltip:SetItemByID(itemID)
+    local lastID = entry and entry.lastItemID
+    local ID = KCM and KCM.ID
+
+    if ID and lastID and ID.IsSpell(lastID) and GameTooltip.SetSpellByID then
+        GameTooltip:SetSpellByID(ID.SpellID(lastID))
+    elseif ID and lastID and ID.IsItem(lastID) and GameTooltip.SetItemByID then
+        GameTooltip:SetItemByID(lastID)
     else
         GameTooltip:SetText(macroName, 1, 0.82, 0)
         if GetMacroInfo and index ~= 0 then
