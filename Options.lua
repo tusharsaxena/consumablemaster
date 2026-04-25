@@ -525,9 +525,212 @@ local function buildStatPriorityTabArgs()
     return args
 end
 
+-- ---------------------------------------------------------------------------
+-- Composite category panel (HP_AIO, MP_AIO)
+-- ---------------------------------------------------------------------------
+-- Composite categories don't have an item priority list of their own — the
+-- macro body is composed at recompute time from the picks of the underlying
+-- single categories (e.g. HP_AIO reads HS, HP_POT, FOOD picks). This panel
+-- exposes only what the user can configure: which sub-categories are
+-- enabled, their order within each combat-state section, and a read-only
+-- preview of what each sub-category is currently picking. Sub-categories
+-- are locked to their section.
+local function buildCompositeArgs(catKey)
+    local cat = KCM.Categories and KCM.Categories.Get and KCM.Categories.Get(catKey)
+    if not cat or not cat.composite then return {} end
+    local cfg = KCM.db and KCM.db.profile and KCM.db.profile.categories
+        and KCM.db.profile.categories[cat.key]
+    if not cfg then return {} end
+
+    local args = {}
+
+    args.descHeader = {
+        type  = "description",
+        order = 1,
+        name  = cat.displayName,
+        dialogControl = "KCMTitle",
+    }
+    args.descSubheader = {
+        type  = "description",
+        order = 2,
+        name  = "Composite macro. Toggle and order the contributing categories below — "
+             .. "each category's own ranking and pick logic is edited on its individual panel.",
+        fontSize = "medium",
+    }
+    args.subheaderSpacer = {
+        type  = "description",
+        order = 3,
+        name  = " ",
+        fontSize = "medium",
+    }
+    args.dragIcon = {
+        type  = "description",
+        order = 4,
+        name  = "",
+        dialogControl = "KCMMacroDragIcon",
+        descStyle = "hide",
+        arg   = { macroName = cat.macroName },
+        width = "full",
+    }
+
+    -- Resolve the "currently owned" status the same way the single-cat panel
+    -- does so the KCMItemRow status glyph stays consistent across pages.
+    local hasItem = KCM.BagScanner and KCM.BagScanner.HasItem
+    local function isOwned(id)
+        if not id then return false end
+        if KCM.ID and KCM.ID.IsSpell(id) then
+            local sid = KCM.ID.SpellID(id)
+            return sid and IsPlayerSpell and IsPlayerSpell(sid) or false
+        end
+        return hasItem and hasItem(id) or false
+    end
+
+    local sections = {
+        { key = "inCombat",    orderField = "orderInCombat",    label = "In Combat",     headingOrder = 10  },
+        { key = "outOfCombat", orderField = "orderOutOfCombat", label = "Out of Combat", headingOrder = 100 },
+    }
+
+    for _, section in ipairs(sections) do
+        local orderArr = cfg[section.orderField] or {}
+
+        args[section.key .. "_heading"] = {
+            type  = "header",
+            order = section.headingOrder,
+            name  = section.label,
+            dialogControl = "KCMHeading",
+        }
+
+        if #orderArr == 0 then
+            args[section.key .. "_empty"] = {
+                type  = "description",
+                order = section.headingOrder + 1,
+                name  = "|cffff8800(no sub-categories)|r",
+                fontSize = "medium",
+            }
+        else
+            local rowSize = #orderArr
+            for i, ref in ipairs(orderArr) do
+                local refCat = KCM.Categories.Get(ref)
+                local pick   = (KCM.Selector and KCM.Selector.PickBestForCategory)
+                    and KCM.Selector.PickBestForCategory(ref) or nil
+
+                -- Capture closure values: rowIndex and orderField are stable
+                -- across the AceConfig render cycle (panel cache invalidates
+                -- on every mutation), so reading by index is safe.
+                local rowIndex = i
+                local rowRef   = ref
+                local sectionOrderField = section.orderField
+
+                local base = section.headingOrder + i * 10
+                local rowKey = section.key .. "_" .. i
+                local refLabel = refCat and refCat.displayName or rowRef
+
+                -- Single-row layout: KCMItemRow (preview, also identifies the
+                -- sub-cat via fallbackName when there's no pick) on the left,
+                -- Enabled toggle and ↑/↓ on the right. KCMItemRow at 1.8
+                -- mirrors the single-cat layout so item names line up
+                -- vertically between AIO and individual category pages; the
+                -- toggle is held at 0.4 so its "Enabled" label doesn't
+                -- truncate to "Ena…".
+                args[rowKey .. "_preview"] = {
+                    type  = "description",
+                    order = base + 0,
+                    name  = "",
+                    dialogControl = "KCMItemRow",
+                    descStyle = "hide",
+                    arg   = {
+                        itemID       = pick,
+                        owned        = isOwned(pick),
+                        isPick       = false,
+                        fallbackName = refLabel,
+                    },
+                    width = 1.8,
+                }
+                args[rowKey .. "_toggle"] = {
+                    type  = "toggle",
+                    order = base + 1,
+                    name  = "Enabled",
+                    desc  = ("Include %s in the macro body."):format(refLabel),
+                    width = 0.4,
+                    get   = function()
+                        local en = cfg.enabled
+                        return en == nil or en[rowRef] ~= false
+                    end,
+                    set   = function(_, val)
+                        cfg.enabled = cfg.enabled or {}
+                        cfg.enabled[rowRef] = val and true or false
+                        afterMutation("options_aio_toggle")
+                    end,
+                }
+                args[rowKey .. "_up"] = {
+                    type  = "execute",
+                    order = base + 2,
+                    name  = "",
+                    desc  = "Move higher in section order",
+                    descStyle = "hide",
+                    image = "Interface\\ChatFrame\\UI-ChatIcon-ScrollUp-Up",
+                    imageWidth  = 24,
+                    imageHeight = 24,
+                    dialogControl = "KCMIconButton",
+                    width = 0.155,
+                    disabled = (rowIndex == 1) or (rowSize <= 1),
+                    func  = function()
+                        local arr = cfg[sectionOrderField]
+                        if not arr or rowIndex <= 1 then return end
+                        arr[rowIndex], arr[rowIndex - 1] = arr[rowIndex - 1], arr[rowIndex]
+                        afterMutation("options_aio_move_up")
+                    end,
+                }
+                args[rowKey .. "_down"] = {
+                    type  = "execute",
+                    order = base + 3,
+                    name  = "",
+                    desc  = "Move lower in section order",
+                    descStyle = "hide",
+                    image = "Interface\\ChatFrame\\UI-ChatIcon-ScrollDown-Up",
+                    imageWidth  = 24,
+                    imageHeight = 24,
+                    dialogControl = "KCMIconButton",
+                    width = 0.155,
+                    disabled = (rowIndex == rowSize) or (rowSize <= 1),
+                    func  = function()
+                        local arr = cfg[sectionOrderField]
+                        if not arr or rowIndex >= #arr then return end
+                        arr[rowIndex], arr[rowIndex + 1] = arr[rowIndex + 1], arr[rowIndex]
+                        afterMutation("options_aio_move_down")
+                    end,
+                }
+            end
+        end
+    end
+
+    args.resetDivider = { type = "header", order = 10000, name = "" }
+    args.reset = {
+        type        = "execute",
+        order       = 10001,
+        name        = "Reset category",
+        desc        = "Restore enabled flags and section order to defaults.",
+        confirm     = true,
+        confirmText = ("Reset %s to defaults?"):format(cat.displayName),
+        func        = function()
+            local defaults = KCM.dbDefaults and KCM.dbDefaults.profile
+                and KCM.dbDefaults.profile.categories
+                and KCM.dbDefaults.profile.categories[cat.key]
+            if not defaults then return end
+            cfg.enabled          = CopyTable(defaults.enabled or {})
+            cfg.orderInCombat    = CopyTable(defaults.orderInCombat or {})
+            cfg.orderOutOfCombat = CopyTable(defaults.orderOutOfCombat or {})
+            afterMutation("options_aio_reset_cat")
+        end,
+    }
+
+    return args
+end
+
 local function buildCategoryArgs(catKey)
     local cat = KCM.Categories and KCM.Categories.Get and KCM.Categories.Get(catKey)
     if not cat then return {} end
+    if cat.composite then return buildCompositeArgs(catKey) end
     local specKey = cat.specAware and resolveViewedSpec() or nil
 
     local args = {}

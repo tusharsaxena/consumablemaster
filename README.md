@@ -6,7 +6,7 @@ An auto-managed consumable-macro addon for **World of Warcraft: Midnight**. Keep
 
 **Slash prefix:** `/kcm`
 **Framework:** Ace3 (AceAddon, AceEvent, AceDB, AceConsole, AceConfig)
-**Version:** 1.2.0
+**Version:** 1.3.0
 **Locale:** English only
 
 ## What it does
@@ -23,6 +23,8 @@ Every time you loot a better food, swap spec, reload, or leave combat, Ka0s Cons
 | 6 | Flask                     | `KCM_FLASK`     | **Yes**     |
 | 7 | Combat potion (throughput)| `KCM_CMBT_POT`  | **Yes**     |
 | 8 | Stat food                 | `KCM_STAT_FOOD` | **Yes**     |
+| 9 | All-in-one health (combat: HS → HP pot, out of combat: food) | `KCM_HP_AIO` | No |
+| 10 | All-in-one mana (combat: MP pot, out of combat: drink) | `KCM_MP_AIO` | No |
 
 Macro writes that would land during combat are queued and flushed on `PLAYER_REGEN_ENABLED` — the addon never calls a protected macro API in combat.
 
@@ -206,6 +208,13 @@ Please report any issues in the [Issues](https://github.com/tusharsaxena/consuma
 
 
 ## Version History
+
+**1.3.0**
+
+*   Two new "all-in-one" macros: `KCM_HP_AIO` and `KCM_MP_AIO`. `KCM_HP_AIO` runs `/castsequence reset=combat` over Healthstone then Healing Potion in combat and fires the Food pick out of combat — driven by `[combat]` / `[nocombat]` macro conditionals so one button covers the full heal rotation. `KCM_MP_AIO` does the equivalent for Mana Potion / Drink. Picks come from the existing single-category pipeline; whatever the standalone `KCM_FOOD` macro is currently picking is what the AIO uses out of combat.
+*   New **AIO Health** and **AIO Mana** settings panels (after Stat Food). Each panel has *In Combat* and *Out of Combat* sections; sub-categories are locked to their section but can be toggled on/off and reordered within it. Each row is a single line — `KCMItemRow` preview on the left, `Enabled` toggle and ↑/↓ reorder on the right. When a sub-category has no current pick the row falls back to the sub-category's display name (so a row stays identifiable even when the underlying macro is empty). The page sub-header explicitly notes that ranking lives on each individual category's panel, not here.
+*   Sub-category steps with no current pick (e.g. no Healthstone in bags) drop out of the macro body so `/castsequence` doesn't jam on an unusable step. If one combat-state side ends up entirely empty (e.g. all out-of-combat sub-categories disabled) but the other still has picks, the macro emits a Lua-conditional `/run` line that prints `KCM: no AIO Health option out of combat` (or the equivalent in-combat variant) when clicked from the empty side — same chat-print behaviour the single-category macros use as their empty-state stub. If both sides end up empty, the macro falls back to the regular empty-state body and the cooking-pot icon.
+*   `/kcm dump pick hp_aio` / `/kcm dump pick mp_aio` print the configured order, per-sub-cat pick, and the resulting macro body (including the per-section fallback line when present).
 
 **1.2.1**
 

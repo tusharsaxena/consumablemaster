@@ -66,6 +66,17 @@ MacroManager.lua  The ONLY module that calls CreateMacro / EditMacro.
                    and FlushPending replays them on PLAYER_REGEN_ENABLED.
                    Body is "/use item:<id>" for items or "/cast <name>"
                    for spell sentinels.
+                   SetCompositeMacro writes the body for composite cats
+                   (KCM_HP_AIO, KCM_MP_AIO): asks Selector for each
+                   enabled sub-cat's pick and emits a multi-line body
+                   with "/castsequence [combat] reset=combat ..." plus
+                   per-ref "/use [nocombat] item:<id>" lines, with
+                   per-section "/run if [not] InCombatLockdown() then
+                   print(...) end" fallback when one combat-state side
+                   is empty. Same fingerprint / size-limit / combat-
+                   deferral ladder as SetMacro; pendingUpdates entries
+                   carry `cat` so FlushPending dispatches back to the
+                   right writer.
 
 Options.lua ───── AceConfig option table built from KCM.Categories.LIST.
                    Registered to Blizzard Settings via
@@ -73,6 +84,12 @@ Options.lua ───── AceConfig option table built from KCM.Categories.LIS
                    Per-row priority widgets: status/name label, score-info
                    button, up/down, delete. Add-by-ID uses a kind dropdown
                    (Item/Spell) + validator + confirm popup.
+                   buildCategoryArgs branches on `cat.composite` — composite
+                   entries (HP_AIO, MP_AIO) route to buildCompositeArgs,
+                   which renders In Combat / Out of Combat sections with
+                   per-ref Enabled toggle + ↑/↓ reorder and a read-only
+                   KCMItemRow preview (with fallbackName so empty rows
+                   still identify their sub-cat).
                    Refresh() is a NotifyChange passthrough — safe to call
                    unconditionally.
 
@@ -124,8 +141,13 @@ event  ─▶  RequestRecompute(reason)
             │  scoreCache = { fields = {} }            -- fresh per pass
             │  for each category in Categories.LIST:
             │      pcall(RecomputeOne, catKey, scoreCache, reason)
-            │         pick = Selector.PickBestForCategory(catKey, nil, scoreCache)
-            │         MacroManager.SetMacro(cat.macroName, pick, catKey)
+            │         if cat.composite:
+            │             MacroManager.SetCompositeMacro(cat, scoreCache)
+            │             (resolves each enabled ref via
+            │              Selector.PickBestForCategory under the hood)
+            │         else:
+            │             pick = Selector.PickBestForCategory(catKey, nil, scoreCache)
+            │             MacroManager.SetMacro(cat.macroName, pick, catKey)
             │  then Options.Refresh() — cheap NotifyChange passthrough.
             ▼
           per-category:
@@ -171,13 +193,19 @@ db.profile
 │   │   ├── blocked     { [itemID] = true }
 │   │   ├── pins        { { itemID, position }, ... }
 │   │   └── discovered  { [itemID] = unixTimestamp }  -- last-seen in bags
-│   └── STAT_FOOD │ CMBT_POT │ FLASK            ← spec-aware:
-│       └── bySpec
-│           └── ["<classID>_<specID>"]
-│               ├── added
-│               ├── blocked
-│               ├── pins
-│               └── discovered   { [itemID] = unixTimestamp }
+│   ├── STAT_FOOD │ CMBT_POT │ FLASK            ← spec-aware:
+│   │   └── bySpec
+│   │       └── ["<classID>_<specID>"]
+│   │           ├── added
+│   │           ├── blocked
+│   │           ├── pins
+│   │           └── discovered   { [itemID] = unixTimestamp }
+│   └── HP_AIO  │ MP_AIO                        ← composite:
+│       ├── enabled            { [refKey] = boolean }
+│       ├── orderInCombat      { refKey, refKey, ... }
+│       └── orderOutOfCombat   { refKey, ... }
+│       (no item buckets — picks come from the referenced single
+│        categories at recompute time via SetCompositeMacro)
 ├── statPriority
 │   └── ["<classID>_<specID>"] = { primary, secondary[] }   -- user overrides only
 └── macroState

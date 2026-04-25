@@ -5,7 +5,7 @@ local ADDON_NAME = "ConsumableMaster"
 local KCM = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.KCM = KCM
 
-KCM.VERSION = "1.2.0"
+KCM.VERSION = "1.3.0"
 
 -- Priority-list entries are opaque numeric IDs. Positive = itemID; negative
 -- is a spell-sentinel whose absolute value is the spellID. Using a disjoint
@@ -35,6 +35,24 @@ KCM.dbDefaults = {
             STAT_FOOD = { bySpec = {} },
             CMBT_POT  = { bySpec = {} },
             FLASK     = { bySpec = {} },
+            -- Composite categories. No item buckets (added/blocked/pins/
+            -- discovered) — picks come from the underlying single categories
+            -- at recompute time. `enabled[ref]` toggles a sub-category in/out
+            -- of the macro body; `orderInCombat` / `orderOutOfCombat` are the
+            -- sub-category refs in the order they appear in the macro body
+            -- (also drives the row order in the panel). Sub-categories are
+            -- locked to their section: HS+HP_POT/MP_POT only ever go into
+            -- inCombat, FOOD/DRINK only ever go into outOfCombat.
+            HP_AIO    = {
+                enabled = { HS = true, HP_POT = true, FOOD = true },
+                orderInCombat = { "HS", "HP_POT" },
+                orderOutOfCombat = { "FOOD" },
+            },
+            MP_AIO    = {
+                enabled = { MP_POT = true, DRINK = true },
+                orderInCombat = { "MP_POT" },
+                orderOutOfCombat = { "DRINK" },
+            },
         },
         statPriority = {}, -- [specKey] = { primary = "AGI", secondary = {...} }  -- user overrides only
         macroState = {},
@@ -72,6 +90,16 @@ function P.RecomputeOne(catKey, scoreCache, reason)
     end
     local cat = KCM.Categories.Get and KCM.Categories.Get(catKey)
     if not cat then return end
+    if cat.composite then
+        -- Composite categories don't pick from their own bag set; their
+        -- macro body is assembled from the picks the underlying single
+        -- categories already produced (Selector.PickBestForCategory is pure
+        -- and idempotent, so calling it again per sub-cat inside
+        -- SetCompositeMacro is fine — and the same scoreCache flows through
+        -- so any item that overlaps multiple categories isn't re-parsed).
+        KCM.MacroManager.SetCompositeMacro(cat, scoreCache)
+        return
+    end
     local pick = KCM.Selector.PickBestForCategory(catKey, nil, scoreCache)
     KCM.MacroManager.SetMacro(cat.macroName, pick, catKey)
     -- Verbose per-category recompute log is commented out — it fires N×M

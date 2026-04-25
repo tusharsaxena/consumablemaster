@@ -216,6 +216,64 @@ DUMP_TARGETS.pick = {
             return
         end
 
+        -- Composite category: print the configured sub-cat order, the pick
+        -- each sub-cat resolves to right now, and the macro body that
+        -- SetCompositeMacro would write. No effective-priority list because
+        -- composites don't have items of their own.
+        if cat.composite then
+            print(PREFIX .. ("%s (composite)"):format(catKey))
+            local cfg = KCM.db and KCM.db.profile and KCM.db.profile.categories
+                and KCM.db.profile.categories[cat.key]
+            if not cfg then
+                print(PREFIX .. "no DB bucket for composite category.")
+                return
+            end
+            local function describePick(refKey)
+                local pick = KCM.Selector.PickBestForCategory(refKey)
+                if not pick then return "(no pick)" end
+                if KCM.ID and KCM.ID.IsSpell(pick) then
+                    local sid = KCM.ID.SpellID(pick)
+                    local name = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(sid)) or "?"
+                    return ("spell:%d %s"):format(sid or 0, name)
+                end
+                local tt = KCM.TooltipCache and KCM.TooltipCache.Get(pick)
+                local name = (tt and tt.itemName)
+                    or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(pick))
+                    or "?"
+                return ("%d %s"):format(pick, name)
+            end
+            local sections = {
+                { label = "In Combat",     orderField = "orderInCombat"    },
+                { label = "Out of Combat", orderField = "orderOutOfCombat" },
+            }
+            for _, section in ipairs(sections) do
+                print(("  %s:"):format(section.label))
+                local arr = cfg[section.orderField] or {}
+                if #arr == 0 then
+                    print("    (none)")
+                else
+                    for i, ref in ipairs(arr) do
+                        local enabled = not (cfg.enabled and cfg.enabled[ref] == false)
+                        local tag = enabled and "|cff44ff44[on]|r " or "|cff888888[off]|r"
+                        print(("    %d. %s %s -> %s"):format(i, tag, ref, describePick(ref)))
+                    end
+                end
+            end
+            if KCM.MacroManager and KCM.MacroManager.BuildCompositeBody then
+                local body = KCM.MacroManager.BuildCompositeBody(cat,
+                    function(refKey) return KCM.Selector.PickBestForCategory(refKey) end)
+                if body then
+                    print("  macro body:")
+                    for line in body:gmatch("[^\n]+") do
+                        print("    " .. line)
+                    end
+                else
+                    print(PREFIX .. "no usable picks — macro would show empty-state stub.")
+                end
+            end
+            return
+        end
+
         -- Build the ranker ctx once; the list is pre-sorted via pins+rank
         -- inside Selector, but we still want per-row raw scores so the user
         -- can see WHY an entry landed where it did (useful when a pin has

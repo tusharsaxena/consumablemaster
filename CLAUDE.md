@@ -26,6 +26,8 @@ Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the module map and pipeline; [docs
 
 **Priority-list entries are opaque numeric IDs.** Positive numbers are itemIDs; negative numbers are spell-sentinels whose absolute value is the spellID. Seed files compose spell entries via `KCM.ID.AsSpell(spellID)` (see `Core.lua`). The rest of the pipeline — Selector buckets, pins, blocklist, Ranker — treats them as opaque numeric keys, so a negative key works identically to a positive one through every table. Only `MacroManager`, `Ranker.Score`'s spell shortcut, and the UI fork on the sign (`KCM.ID.IsSpell` / `IsItem`) to render `/use item:<id>` vs `/cast <spellname>`. `Selector.MarkDiscovered` rejects spells since bag discovery can't find them; `Selector.AddItem` accepts both so the Options panel's Item/Spell picker can seed either.
 
+**Composite categories don't pick items — they compose other categories' picks.** `KCM_HP_AIO` and `KCM_MP_AIO` are flagged `composite = true` in `Categories.LIST` and carry a `components = { inCombat = {...}, outOfCombat = {...} }` table of single-category refs. `Pipeline.RecomputeOne` branches on `cat.composite` and dispatches to `MacroManager.SetCompositeMacro`, which calls `Selector.PickBestForCategory` per enabled ref and assembles a multi-line body (`/castsequence [combat] reset=combat ...` for the in-combat side, `/use [nocombat] item:N` or `/cast [nocombat] <Spell>` per out-of-combat ref). Composites have no `added/blocked/pins/discovered` buckets — their persisted state is `enabled[ref]` plus the two `orderInCombat`/`orderOutOfCombat` arrays. A sub-category step with no current pick is dropped from the body; if one combat-state side has picks and the other is entirely empty, an extra `/run if [not] InCombatLockdown() then print(...) end` line emits a chat-print fallback for the empty side (since `/run` doesn't accept `[combat]`/`[nocombat]` macro conditionals — those are evaluated by the secure-macro parser, which only attaches them to `/use`/`/cast`/`/castsequence`/etc.). Adding a new composite reuses the existing single-cat picking pipeline — no Classifier, Ranker, or `Defaults_*` file is needed.
+
 ---
 
 ## Load order
@@ -109,6 +111,15 @@ If you can only reason about the change from code and cannot test it in WoW, say
 7. Update the `dbDefaults.profile.categories` table in `Core.lua` so AceDB creates the bucket.
 8. Options panel picks the category up automatically from `Categories.LIST`.
 
+### Add a new composite category
+
+Composites don't pick items themselves — they compose other categories' picks via `[combat]`/`[nocombat]` conditionals.
+
+1. Append a row to `KCM.Categories.LIST` with `composite = true` and `components = { inCombat = { <refKeys> }, outOfCombat = { <refKeys> } }`. The refs are keys of existing single-category entries (e.g. `"HS"`, `"HP_POT"`, `"FOOD"`).
+2. Add a bucket to `dbDefaults.profile.categories` in `Core.lua` with the composite shape: `{ enabled = { [ref] = true, ... }, orderInCombat = { ... }, orderOutOfCombat = { ... } }`.
+3. No Classifier, Ranker, or `Defaults_*` file. No `added/blocked/pins/discovered` buckets. The pipeline already branches on `cat.composite` in `Pipeline.RecomputeOne`, dispatching to `MacroManager.SetCompositeMacro` which handles body assembly, the 255-byte limit, fingerprint cache, and the combat-deferral queue (sharing the same `pendingUpdates` table — composite entries carry `entry.cat` so `FlushPending` can dispatch back to `SetCompositeMacro`).
+4. Options panel picks the composite up automatically — `buildCategoryArgs` routes `cat.composite` entries to `buildCompositeArgs`, which renders the *In Combat* / *Out of Combat* sections with toggle + reorder controls and a read-only `KCMItemRow` preview per ref.
+
 ### Refresh seed item IDs after a patch
 
 Follow [docs/REFRESH_ITEMS.md](./docs/REFRESH_ITEMS.md). Updating a `defaults/Defaults_*.lua` is safe — user SavedVariables are preserved.
@@ -154,7 +165,7 @@ Run `/kcm dump item <id>` to see the subType + parsed tooltip. If subType is wro
 - Category matching: `Classifier.lua`
 - Per-category scorers + `Ranker.Explain` / `Ranker.BuildContext`: `Ranker.lua`
 - Candidate set + effective priority + DB mutators: `Selector.lua`
-- The only protected-API caller (items + spells): `MacroManager.lua`
+- The only protected-API caller (single picks via `SetMacro`, composite picks via `SetCompositeMacro`, both share the same combat-deferral queue): `MacroManager.lua`
 - Settings panel: `Options.lua`
 - `/kcm` dispatcher + reset popup: `SlashCommands.lua`
 - Debug helper: `Debug.lua`

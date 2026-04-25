@@ -1,6 +1,6 @@
 -- defaults/Categories.lua — Category metadata. Each row describes one managed macro.
 --
--- Fields:
+-- Fields (single-category):
 --   key         : internal identifier, matches AceDB profile.categories[key]
 --   macroName   : global macro name (<=16 chars, GetMacroIndexByName lookup)
 --   displayName : human-readable label for settings UI
@@ -8,6 +8,17 @@
 --   rankerKey   : hint for Ranker module (Milestone 4)
 --   classifier  : hint for Classifier module (Milestone 4)
 --   emptyText   : fallback macro body when category has no resolvable items
+--
+-- Fields (composite — composite=true):
+--   composite   : true marks this row as an aggregator; the pipeline routes
+--                 it through MacroManager.SetCompositeMacro instead of the
+--                 single-pick path.
+--   components  : { inCombat = { catKey, ... }, outOfCombat = { catKey, ... } }
+--                 The default sub-categories assigned to each combat-state
+--                 section; user toggles + reorder live in
+--                 db.profile.categories[<key>].enabled / orderInCombat /
+--                 orderOutOfCombat. Sub-categories are locked to their
+--                 section.
 
 local KCM = _G.KCM
 KCM.Categories = KCM.Categories or {}
@@ -84,6 +95,28 @@ KCM.Categories.LIST = {
         rankerKey   = "STAT_FOOD",
         classifier  = "STAT_FOOD",
         emptyText   = "/run print('KCM: no stat food for this spec')",
+    },
+    {
+        key         = "HP_AIO",
+        macroName   = "KCM_HP_AIO",
+        displayName = "AIO Health",
+        composite   = true,
+        components  = {
+            inCombat    = { "HS", "HP_POT" },
+            outOfCombat = { "FOOD" },
+        },
+        emptyText   = "/run print('KCM: no AIO health option available')",
+    },
+    {
+        key         = "MP_AIO",
+        macroName   = "KCM_MP_AIO",
+        displayName = "AIO Mana",
+        composite   = true,
+        components  = {
+            inCombat    = { "MP_POT" },
+            outOfCombat = { "DRINK" },
+        },
+        emptyText   = "/run print('KCM: no AIO mana option available')",
     },
 }
 

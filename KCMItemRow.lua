@@ -13,7 +13,7 @@
 -- `arg` field, which AceConfigDialog forwards to `SetCustomData`. We ignore
 -- the stock `SetText` payload — the widget builds its own display string.
 
-local Type, Version = "KCMItemRow", 1
+local Type, Version = "KCMItemRow", 2
 local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
 if not AceGUI or (AceGUI:GetWidgetVersion(Type) or 0) >= Version then return end
 
@@ -146,6 +146,7 @@ local methods = {
         self.itemID = nil
         self.owned  = false
         self.isPick = false
+        self.fallbackName = nil
         self.frame.height = ROW_HEIGHT
         self:SetHeight(ROW_HEIGHT)
         self:SetWidth(300)
@@ -161,12 +162,17 @@ local methods = {
     ["SetFontObject"] = function(self, _) end,
 
     -- Receives the option table's `arg` field. Expected shape:
-    --   { itemID = <number>, owned = <bool>, isPick = <bool> }
+    --   { itemID = <number>, owned = <bool>, isPick = <bool>,
+    --     fallbackName = <string?> }
+    -- fallbackName is rendered when itemID is nil, so a row that's logically
+    -- "for the Healthstone sub-category but currently has no pick" still
+    -- identifies itself instead of showing "[Loading]".
     ["SetCustomData"] = function(self, data)
         if type(data) ~= "table" then return end
         self.itemID = data.itemID
         self.owned  = data.owned  and true or false
         self.isPick = data.isPick and true or false
+        self.fallbackName = data.fallbackName
         self:RefreshDisplay()
     end,
 
@@ -201,7 +207,7 @@ local methods = {
 
         if spellID then
             self.label:SetText(spellDisplayName(spellID))
-        else
+        elseif self.itemID then
             local name = itemDisplayName(self.itemID)
             local count = (self.itemID and _G.GetItemCount) and _G.GetItemCount(self.itemID) or 0
             if count and count > 0 then
@@ -209,6 +215,13 @@ local methods = {
             else
                 self.label:SetText(name)
             end
+        elseif self.fallbackName then
+            -- AIO panel rows pass their sub-category displayName here so a
+            -- row with no current pick still reads as "Healthstone" rather
+            -- than the generic "[Loading]" placeholder.
+            self.label:SetText(self.fallbackName)
+        else
+            self.label:SetText("[Loading]")
         end
         applyLabelWidth(self)
     end,
