@@ -119,65 +119,85 @@ Hovering the **blue info button** on any row shows the full per-item score break
 ## FAQ
 
 **Will this delete or overwrite my existing macros?**
+
 No. The eight `KCM_*` macros are identified by **name**, never by slot, and the addon only ever touches macros it owns. Your custom macros — including anything already sitting in slots 1–120 of the account-wide pool — are never read, moved, or deleted. If you delete a `KCM_*` macro by hand, the next pipeline run recreates it (as long as there's a free account-wide slot).
 
 **Do the macros work across all my characters?**
+
 Yes — they're written to the **account-wide** macro pool (slots 1–120), not the per-character pool. One set of eight macros is shared across every character on the account. Priority lists, added/blocked entries, and stat-priority overrides live in `SavedVariables` (`ConsumableMasterDB`) with a single profile by default, so every character sees the same settings.
 
 **Why are some categories per-spec and others aren't?**
+
 Flask, Combat Potion, and Stat Food are **spec-aware** because their value depends on your stat priority (primary stat + secondary order). Food, Drink, HP Potion, MP Potion, and Healthstone rank the same regardless of spec, so they share one priority list across all specs of a character.
 
 **How do I add an item or spell the addon doesn't already know about?**
+
 Open the category's page in **Settings → AddOns → Consumable Master**, use the **Add item or spell by ID** input at the top. Items validate against `C_Item.GetItemInfoInstant`; spells validate against `C_Spell.GetSpellName`. A confirmation dialog shows the resolved name before it commits.
 
 **How do I force a specific item to always win over the Ranker?**
+
 On that category's page, use the **↑ / ↓** buttons to move it to the position you want. The addon stores that as a **pin** — pinned entries override the Ranker's score and land at their chosen position; everything else fills the gaps in natural order.
 
 **How do I permanently remove an item?**
+
 Use the **×** button on its row. That blocks the item, so auto-discovery won't re-add it even if you loot another copy. Use **Reset category** (or **Reset all priorities** in General) to clear the blocklist again.
 
 **Does it work with ElvUI / Bartender / other action-bar addons?**
+
 Yes. The `KCM_*` macros are plain Blizzard macros and can be dragged onto any action bar. If the picked item's icon doesn't show on the bar (you see the cooking-pot fallback instead), see the Troubleshooting entry below — the v1.2.0 fix addresses this, but a one-time **Force rewrite macros** + `/reload` is sometimes needed on upgrade.
 
 **Can I use this in a non-English client?**
+
 No — **English only**. Classifier compares item subtypes against literal English strings (`"Potions"`, `"Flasks & Phials"`, etc.) and tooltip parsing uses English patterns. Localization is explicitly out of scope.
 
 **Will new patch flasks / potions work automatically?**
+
 Usually yes — auto-discovery scans your bags and classifies anything that matches by type / subType / tooltip patterns, so a freshly-looted new-tier flask joins the candidate set on the next bag update. If a patch **renames** a subtype string or reformats tooltip numbers, pattern updates in `Classifier.lua` / `TooltipCache.lua` may be needed — please file an issue.
 
 **Why does a smaller-instant HP potion beat a bigger heal-over-time potion?**
+
 By design. Immediate restores always outrank HOT pots unless the HOT's total is **more than 20% larger** than the best immediate in the same candidate set. Immediate value is usually what you want in an emergency; a small HOT edge isn't worth giving up the burst. You can override this by pinning the HOT above the immediate.
 
 ## Troubleshooting
 
 **My action bar shows the cooking-pot icon instead of the picked item's icon.**
-This is the v1.2.0-era issue. Run **Settings → General → Force rewrite macros** (or `/kcm rewritemacros`) and then `/reload`. If you're upgrading from v1.1.0, the first pipeline run auto-migrates each macro's stored icon to the `?` sentinel, but some action-bar frameworks (notably ElvUI and Bartender) cache the texture until the button is re-rendered — `/reload` forces a refresh.
+
+Run **Settings → General → Force rewrite macros** (or `/kcm rewritemacros`) and then `/reload`. If you're upgrading from v1.1.0, the first pipeline run auto-migrates each macro's stored icon to the `?` sentinel, but some action-bar frameworks (notably ElvUI and Bartender) cache the texture until the button is re-rendered — `/reload` forces a refresh.
 
 **The macro shows the cooking pot but I *do* own the item.**
+
 Run `/kcm dump pick <catKey>` (e.g. `/kcm dump pick FLASK`). The output lists every candidate with its score, an `[owned]` tag if it's in your bags, and the `<-- pick` marker on the winner. If the item doesn't appear in the list at all, it's either blocked (remove it with × from another category, or Reset category) or its tooltip hasn't hydrated yet (`/kcm dump item <itemID>` shows the parsed fields — if `pending: tooltip data not yet loaded` appears, wait a second and retry).
 
 **I just looted a better food / flask but the macro didn't update.**
+
 The pipeline is debounced on `BAG_UPDATE_DELAYED`; give it a frame. If still nothing, `/kcm resync` forces a full rescan. If the pick was made in combat, the macro write is deferred until you leave combat (`PLAYER_REGEN_ENABLED`) — that's a hard restriction of the protected macro API, not a bug.
 
 **My macro body changed but my action bar didn't.**
+
 `/reload`. Some action-bar frameworks (ElvUI, Bartender) cache `GetActionTexture` results and don't re-query on every `UPDATE_MACROS`. A reload is the simplest way to force a full re-draw.
 
 **I swapped specs but `KCM_FLASK` / `KCM_CMBT_POT` / `KCM_STAT_FOOD` didn't update.**
+
 Spec-aware categories recompute on `PLAYER_SPECIALIZATION_CHANGED`. If that event didn't fire (rare — typically a Blizzard bug), `/kcm resync` will pick up the new spec's stat priority. Verify the viewed spec on the **Stat Priority** page matches your current spec.
 
 **`/kcm dump item <id>` shows a subType the addon doesn't classify.**
+
 Most likely Midnight renamed the subtype string. The matcher strings live in `Classifier.lua` (`ST_*` constants). Please file an issue with the `subType` from the dump output.
 
 **Chat prints "macro body exceeds 255 bytes" once on login.**
+
 Blizzard caps every macro body at 255 characters. The addon falls back to the empty-state stub for that category rather than write a truncated body (which would corrupt the `/use` line). Please report this with the category key — an oversized active body usually means a spell name is unexpectedly long, or a seed composition is wrong.
 
 **I hit "gave up on `KCM_X` after 3 failed writes".**
+
 The macro's `EditMacro` call is being rejected three times across combat flushes. This is almost always a Blizzard bug or another addon tainting the macro APIs. Run `/kcm debug`, reproduce, and file an issue with the debug log — the raw `EditMacro` return value is captured there.
 
 **`/kcm reset` or "Reset all priorities" says it didn't work.**
+
 Both paths route through `KCM.ResetAllToDefaults` in `Core.lua`. If the function returns false, `KCM.db` / `KCM.db.profile` isn't ready — reload and try again. This should only happen during a failed initial load.
 
 **I want to restore a seed list that a patch shipped (after removing items manually).**
+
 "Reset category" on that category's page wipes your added / blocked / pinned entries for that category. "Reset all priorities" (General page) wipes everything and restores every seed, including stat priorities and spec overrides.
 
 ## Bug Reports
@@ -187,21 +207,25 @@ Please report any issues in the [Issues](https://github.com/tusharsaxena/consuma
 
 ## Version History
 
-**v1.2.0**
+**1.2.1**
+
+*   Fix Lua error on login: the `LEARNED_SPELL_IN_TAB` event was removed in retail and registering it threw `Attempt to register unknown event` from AceEvent. Switched to its modern replacement `LEARNED_SPELL_IN_SKILL_LINE`; spell-name hydration on level-up still works without a reload.
+
+**1.2.0**
 
 *   Action-bar icon fix: active macros now store the `?` sentinel icon (fileID `134400`) so `#showtooltip` can drive the action-bar button — the picked flask / potion / food icon finally renders on ElvUI, Bartender, and any other `GetActionTexture`-based bar. Empty-state macros continue to store the cooking-pot fallback (no `#showtooltip` in the body). Existing installs migrate automatically on the first pipeline run after upgrade: the new `lastIcon` field in `macroState` mismatches, which triggers one `EditMacro` per category. If a bar still shows a stale icon, `/reload` or use the new Force rewrite macros button.
 *   New command **`/kcm rewritemacros`** (also available as **Settings → General → Force rewrite macros**) — clears the cached body/icon fingerprints in `macroState` plus the combat-deferral queue, then re-runs the pipeline so every macro is re-issued unconditionally. Use this when the "Force resync" path skips a write because the body hasn't changed but you still want a fresh `EditMacro` call.
 *   Options-panel drag widget: the small icon above each category page now renders the picked item's / spell's texture directly (via `C_Item.GetItemIconByID` / `C_Spell.GetSpellTexture`), since the stored macro icon is now the meaningless `?` sentinel for active macros. Empty-state categories still show the cooking pot.
 *   Force resync tooltip clarified — it invalidates the tooltip cache, re-runs auto-discovery, and recomputes picks, but re-issues macros only when the body or pick changes. For an unconditional rewrite, use Force rewrite macros.
 
-**v1.1.0**
+**1.1.0**
 
 *   Correctness: locked items (stack-split, mail) no longer trigger a macro flap; one bad category scorer can no longer break the other seven (per-category `pcall` in Recompute); oversized macro bodies fall back to the empty-state stub with a one-shot chat error instead of silently truncating; combat deferrals retry up to three times before giving up, with a chat notice.
 *   Performance: a per-Recompute score cache memoizes `GetItemInfo`, tooltip parses, and per-category Ranker scores so a flurry of bag events doesn't re-score the same candidate set eight times over.
 *   Discovery GC: `discovered` entries are stamped with a unix timestamp; a PEW-time sweep deletes items not seen in bags for 30 days so the set can't grow unbounded across account-lifetime play.
-*   Spell hydration: `LEARNED_SPELL_IN_TAB` now triggers a recompute so a just-learned spell entry (e.g. Recuperate on level-up) adopts its macro body without a reload.
+*   Spell hydration: `LEARNED_SPELL_IN_SKILL_LINE` now triggers a recompute so a just-learned spell entry (e.g. Recuperate on level-up) adopts its macro body without a reload.
 *   UX: category tabs reordered to Food → Drink → Healing Potion → Mana Potion → Healthstone → Flask → Combat Potion → Stat Food. Empty-state macros now show a cooking-pot fallback icon instead of the question mark.
 
-**v1.0.0**
+**1.0.0**
 
 *   Initial Release … yay!

@@ -291,7 +291,7 @@ function KCM:OnItemInfoReceived(event, itemID, success)
     end
 end
 
-function KCM:OnLearnedSpellInTab()
+function KCM:OnLearnedSpell()
     -- Closes the narrow window where spellNameFor() returned nil during a
     -- macro write because the spell book hadn't hydrated yet, but the spell
     -- becomes known later in the same session without a spec change or bag
@@ -306,5 +306,5 @@ function KCM:OnEnable()
     self:RegisterEvent("PLAYER_REGEN_DISABLED",         "OnRegenDisabled")
     self:RegisterEvent("PLAYER_REGEN_ENABLED",          "OnRegenEnabled")
     self:RegisterEvent("GET_ITEM_INFO_RECEIVED",        "OnItemInfoReceived")
-    self:RegisterEvent("LEARNED_SPELL_IN_TAB",          "OnLearnedSpellInTab")
+    self:RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE",   "OnLearnedSpell")
 end

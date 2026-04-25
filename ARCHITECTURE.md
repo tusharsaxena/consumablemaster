@@ -151,7 +151,7 @@ Per-category `pcall` isolates failures: one throwing scorer (e.g. a Blizzard too
 | `PLAYER_REGEN_DISABLED`         | `OnRegenDisabled`         | `KCM._inCombat = true`.               |
 | `PLAYER_REGEN_ENABLED`          | `OnRegenEnabled`          | `MacroManager.FlushPending()`.        |
 | `GET_ITEM_INFO_RECEIVED`        | `OnItemInfoReceived`      | TooltipCache.Invalidate(id) + retry discovery + RequestRecompute. |
-| `LEARNED_SPELL_IN_TAB`          | `OnLearnedSpellInTab`     | RequestRecompute — so a newly-learned spell entry hydrates its macro body without a reload. |
+| `LEARNED_SPELL_IN_SKILL_LINE`   | `OnLearnedSpell`          | RequestRecompute — so a newly-learned spell entry hydrates its macro body without a reload. |
 
 `GET_ITEM_INFO_RECEIVED` retry exists because `Classifier.Match` returns false while a tooltip is pending; without the retry, items present in bags from `/reload` silently skip discovery on the first pass.
 
