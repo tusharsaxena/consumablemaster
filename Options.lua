@@ -1,7 +1,7 @@
 -- Options.lua — AceConfig-driven settings panel.
 --
 -- Registered in Core:OnInitialize via KCM.Options.Register(). Shows up in
--- Blizzard's ESC → Options → AddOns list as "Consumable Master". The
+-- Blizzard's ESC → Options → AddOns list as "Ka0s Consumable Master". The
 -- option table is built lazily on each open/refresh by KCM.Options.Build,
 -- so any live mutation to KCM.db.profile / Selector state renders
 -- immediately the next time NotifyChange fires.
@@ -25,10 +25,9 @@ KCM.Options = KCM.Options or {}
 local O = KCM.Options
 
 -- Shown as the category label in Blizzard's Settings panel and as the
--- root group name in the AceConfig tree. Shortened to "Consumable Master"
--- (the addon itself keeps the "Ka0s Consumable Master" identity in the
--- TOC and in chat output).
-local PANEL_TITLE = "Consumable Master"
+-- root group name in the AceConfig tree. Mirrors the TOC Title and the
+-- chat-output identity.
+local PANEL_TITLE = "Ka0s Consumable Master"
 local REGISTRY_KEY = "ConsumableMaster"
 
 -- ---------------------------------------------------------------------------
@@ -1176,7 +1175,7 @@ function O.Register()
     KCM._settingsCategoryFrame = frame
     KCM._settingsCategoryID    = categoryID or (frame and frame.name) or nil
 
-    -- BlizOptionsGroup renders the panel title ("Consumable Master") in
+    -- BlizOptionsGroup renders the panel title ("Ka0s Consumable Master") in
     -- GameFontNormalLarge (~14pt), which is smaller than our per-page KCMTitle
     -- headers (22pt). Bump it to 24pt gold so the addon title is the dominant
     -- top-level heading and clearly outranks the page headers below it. We
