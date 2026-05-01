@@ -93,7 +93,11 @@ Options.lua ───── AceConfig option table built from KCM.Categories.LIS
                    Refresh() is a NotifyChange passthrough — safe to call
                    unconditionally.
 
-SlashCommands.lua /kcm dispatcher. DUMP_TARGETS is a single source of truth
+SlashCommands.lua /cm (and /consumablemaster alias) dispatcher. Owns a
+                   say() helper that prepends the cyan |cff00ffff[CM]|r tag
+                   to every chat line — slash output, dump body rows, and
+                   help table rows all route through it so the prefix is
+                   unconditional. DUMP_TARGETS is a single source of truth
                    so adding a dump name makes it appear in help output
                    (categories / statpriority / bags / item / pick).
                    Owns the KCM_CONFIRM_RESET StaticPopup.
@@ -159,7 +163,7 @@ event  ─▶  RequestRecompute(reason)
               (items) or IsPlayerSpell confirms (spell sentinels).
 ```
 
-`scoreCache` is threaded all the way through Pipeline → Selector → Ranker. It memoizes `GetItemInfo` + `TooltipCache.Get` results under `scoreCache.fields[id]` and per-category Ranker scores under `scoreCache[catKey][id]` — so a bag-flurry event that touches multiple macros doesn't re-score the same candidate set once per category. Panel rendering and `/kcm dump` paths pass `nil` and fall back to the uncached code path, preserving the live-data view.
+`scoreCache` is threaded all the way through Pipeline → Selector → Ranker. It memoizes `GetItemInfo` + `TooltipCache.Get` results under `scoreCache.fields[id]` and per-category Ranker scores under `scoreCache[catKey][id]` — so a bag-flurry event that touches multiple macros doesn't re-score the same candidate set once per category. Panel rendering and `/cm dump` paths pass `nil` and fall back to the uncached code path, preserving the live-data view.
 
 Per-category `pcall` isolates failures: one throwing scorer (e.g. a Blizzard tooltip-shape change) can't break the other seven macros in the same recompute.
 
@@ -212,7 +216,7 @@ db.profile
     └── [macroName] = { lastItemID, lastBody, lastCat }     -- early-out cache
 ```
 
-`KCM.ResetAllToDefaults(reason)` in Core.lua is the one place that wipes `categories` + `statPriority` back to `dbDefaults`. Both the Options "Reset all" button and `/kcm reset`'s StaticPopup delegate to it so semantics stay identical. It also runs TooltipCache.InvalidateAll → RunAutoDiscovery → Recompute on every call.
+`KCM.ResetAllToDefaults(reason)` in Core.lua is the one place that wipes `categories` + `statPriority` back to `dbDefaults`. Both the Options "Reset all" button and `/cm reset`'s StaticPopup delegate to it so semantics stay identical. It also runs TooltipCache.InvalidateAll → RunAutoDiscovery → Recompute on every call.
 
 `Selector.MarkDiscovered` stamps `discovered[id]` with the current unix time on every sighting; legacy `true` values written by v1.0.0 are honoured on read and bumped to a timestamp the first time the item is seen again. `Selector.SweepStaleDiscovered(nowUnix)` (PEW-only) refreshes any id still present in bags and deletes entries older than 30 days — a bounded-growth guarantee for accounts that pass through many consumable tiers.
 
@@ -225,9 +229,9 @@ db.profile
 - **Seed lists are treated as data, not code.** Updating a `defaults/Defaults_*.lua` is a zero-migration upgrade for existing users because `added`/`discovered`/`blocked` live in SavedVariables and union with the seed at runtime.
 - **English-only.** Classifier compares subType against literal strings (`"Potions"`, `"Food & Drink"`, `"Flasks & Phials"`) and TooltipCache patterns are English. If Blizzard renames a subtype, edit the `ST_*` constants in `Classifier.lua`.
 - **Module publishing pattern:** every file does `KCM.Foo = KCM.Foo or {}; local F = KCM.Foo`. Never shadow the local over the global.
-- **Recompute is coalesced.** Event handlers call `RequestRecompute`, never `Recompute` directly — except the rare direct path (Reset, `/kcm resync`) where we want the write to land this tick.
+- **Recompute is coalesced.** Event handlers call `RequestRecompute`, never `Recompute` directly — except the rare direct path (Reset, `/cm resync`) where we want the write to land this tick.
 - **Priority-list IDs are opaque numbers with sign semantics.** Positive = itemID, negative = `KCM.ID.AsSpell(spellID)`. Only `MacroManager` and the UI fork on sign; every other layer treats them as plain table keys. Keep it that way — no new side channels.
-- **Score cache lives for one Recompute pass and no longer.** `scoreCache` is created fresh in `Pipeline.Recompute` and threaded through `Selector.PickBestForCategory` → `Ranker.SortCandidates`. Never cache across passes — tooltip/bag/spec state can shift between events. Non-pipeline callers (the Options panel, `/kcm dump pick`) pass `nil` so they always see fresh scores.
+- **Score cache lives for one Recompute pass and no longer.** `scoreCache` is created fresh in `Pipeline.Recompute` and threaded through `Selector.PickBestForCategory` → `Ranker.SortCandidates`. Never cache across passes — tooltip/bag/spec state can shift between events. Non-pipeline callers (the Options panel, `/cm dump pick`) pass `nil` so they always see fresh scores.
 
 ---
 

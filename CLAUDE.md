@@ -22,7 +22,7 @@ Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the module map and pipeline; [docs
 
 **Seed data is data.** `defaults/Defaults_*.lua` files are just lists of itemIDs that become `KCM.SEED.<CATKEY>`. Updating a seed list is a zero-migration upgrade because the runtime candidate set is `seed ∪ added ∪ discovered − blocked` and the right-side sets live in SavedVariables. See [defaults/README.md](./defaults/README.md) and [docs/REFRESH_ITEMS.md](./docs/REFRESH_ITEMS.md).
 
-**Reset is centralized.** `KCM.ResetAllToDefaults(reason)` in `Core.lua` wipes + resyncs. Both the Options panel "Reset all priorities" button and `/kcm reset`'s StaticPopup delegate to it. Don't add a third reset path.
+**Reset is centralized.** `KCM.ResetAllToDefaults(reason)` in `Core.lua` wipes + resyncs. Both the Options panel "Reset all priorities" button and `/cm reset`'s StaticPopup delegate to it. Don't add a third reset path.
 
 **Priority-list entries are opaque numeric IDs.** Positive numbers are itemIDs; negative numbers are spell-sentinels whose absolute value is the spellID. Seed files compose spell entries via `KCM.ID.AsSpell(spellID)` (see `Core.lua`). The rest of the pipeline — Selector buckets, pins, blocklist, Ranker — treats them as opaque numeric keys, so a negative key works identically to a positive one through every table. Only `MacroManager`, `Ranker.Score`'s spell shortcut, and the UI fork on the sign (`KCM.ID.IsSpell` / `IsItem`) to render `/use item:<id>` vs `/cast <spellname>`. `Selector.MarkDiscovered` rejects spells since bag discovery can't find them; `Selector.AddItem` accepts both so the Options panel's Item/Spell picker can seed either.
 
@@ -63,9 +63,11 @@ local F = KCM.Foo
 
 ## Debug and diagnostics
 
-- Toggle verbose logs: `/kcm debug`. Internally this flips `KCM.db.profile.debug`. Call `KCM.Debug.Print(fmt, ...)` — it early-returns when off, so unconditional calls are safe.
-- Dump internals: `/kcm dump <target>` where targets are `categories`, `statpriority`, `bags`, `item <id>`, `pick <catKey>`. `DUMP_TARGETS` in `SlashCommands.lua` is a single source of truth — add a row and it appears in help automatically. `item` shows parsed tooltip + raw lines (pattern-debugging view appended); `pick` shows the effective priority list with per-entry ranker scores and the owned-item pick.
-- Force a resync: `/kcm resync` — invalidates TooltipCache, re-runs discovery, runs a direct (non-coalesced) Recompute.
+- Slash forms: `/cm` is the short form, `/consumablemaster` is the long alias. Both are registered in `Core:OnInitialize` (`Core.lua`) and route to `KCM:OnSlashCommand` in `SlashCommands.lua`.
+- Every chat line the addon emits — slash output, Options notices, MacroManager warnings, and the `/run print(...)` empty-state bodies embedded in the macros themselves — wears a cyan `|cff00ffff[CM]|r` tag. `SlashCommands.lua` defines a `say()` helper that all dump/help prints route through; the prefix is unconditional. Don't introduce raw `print(...)` calls in the addon — go through `say()` (slash UX), `KCM.Debug.Print` (gated logs), or hard-code the `|cff00ffff[CM]|r ` prefix inline if you need a one-off chat print.
+- Toggle verbose logs: `/cm debug`. Internally this flips `KCM.db.profile.debug`. Call `KCM.Debug.Print(fmt, ...)` — it early-returns when off, so unconditional calls are safe.
+- Dump internals: `/cm dump <target>` where targets are `categories`, `statpriority`, `bags`, `item <id>`, `pick <catKey>`. `DUMP_TARGETS` in `SlashCommands.lua` is a single source of truth — add a row and it appears in help automatically. `item` shows parsed tooltip + raw lines (pattern-debugging view appended); `pick` shows the effective priority list with per-entry ranker scores and the owned-item pick.
+- Force a resync: `/cm resync` — invalidates TooltipCache, re-runs discovery, runs a direct (non-coalesced) Recompute.
 
 `Core.lua` has a commented-out per-category recompute log. Uncomment only for short debugging sessions; it fires N × M times during login (N categories × M `GET_ITEM_INFO_RECEIVED` events) and floods chat.
 
@@ -76,14 +78,14 @@ local F = KCM.Foo
 **There are no automated tests.** Validation is manual, in-game:
 
 - Load the addon, log in, verify the eight `KCM_*` macros exist.
-- Watch `/kcm debug` output during login, bag changes, spec swaps, combat enter/leave.
-- Use `/kcm dump pick <catKey>` to verify the effective priority list (includes per-entry ranker scores) and the owned pick.
-- Use `/kcm dump item <itemID>` to pattern-debug tooltip parsing — the command prints the parsed tooltip fields plus the raw tooltip lines underneath.
+- Watch `/cm debug` output during login, bag changes, spec swaps, combat enter/leave.
+- Use `/cm dump pick <catKey>` to verify the effective priority list (includes per-entry ranker scores) and the owned pick.
+- Use `/cm dump item <itemID>` to pattern-debug tooltip parsing — the command prints the parsed tooltip fields plus the raw tooltip lines underneath.
 
 When changing a scorer, classifier, or tooltip pattern, smoke test:
 
-1. `/kcm resync`
-2. `/kcm dump pick <affected catKey>` — inspect scores (order + why) and the winner.
+1. `/cm resync`
+2. `/cm dump pick <affected catKey>` — inspect scores (order + why) and the winner.
 3. Check the actual macro in the macro UI.
 
 If you can only reason about the change from code and cannot test it in WoW, say so explicitly — don't claim it works.
@@ -126,7 +128,7 @@ Follow [docs/REFRESH_ITEMS.md](./docs/REFRESH_ITEMS.md). Updating a `defaults/De
 
 ### Fix a misclassification
 
-Run `/kcm dump item <id>` to see the subType + parsed tooltip. If subType is wrong, Midnight may have renamed the string — edit `ST_*` in `Classifier.lua`. If the tooltip parse is missing a field, check `PATTERNS` in `TooltipCache.lua` (watch for non-breaking space U+00A0 and `|4singular:plural;` escapes — both are already normalized in `normalizeTooltipText`).
+Run `/cm dump item <id>` to see the subType + parsed tooltip. If subType is wrong, Midnight may have renamed the string — edit `ST_*` in `Classifier.lua`. If the tooltip parse is missing a field, check `PATTERNS` in `TooltipCache.lua` (watch for non-breaking space U+00A0 and `|4singular:plural;` escapes — both are already normalized in `normalizeTooltipText`).
 
 ---
 
@@ -167,7 +169,7 @@ Run `/kcm dump item <id>` to see the subType + parsed tooltip. If subType is wro
 - Candidate set + effective priority + DB mutators: `Selector.lua`
 - The only protected-API caller (single picks via `SetMacro`, composite picks via `SetCompositeMacro`, both share the same combat-deferral queue): `MacroManager.lua`
 - Settings panel: `Options.lua`
-- `/kcm` dispatcher + reset popup: `SlashCommands.lua`
+- `/cm` (and `/consumablemaster` alias) dispatcher + reset popup + `say()` helper that prepends the cyan `[CM]` prefix to every chat line: `SlashCommands.lua`
 - Debug helper: `Debug.lua`
 - AceGUI custom widgets (referenced from `Options.lua` via `dialogControl`):
   - Row of [status] [item icon] [name] [pick star]: `KCMItemRow.lua`

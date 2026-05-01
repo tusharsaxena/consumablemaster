@@ -8,7 +8,7 @@
 
 An auto-managed consumable-macro addon for **World of Warcraft: Midnight**. Keeps a fixed set of account-wide global macros pointed at the single best consumable currently in your bags, for eight categories — so you never rebuild a food / flask / potion macro again.
 
-**Slash prefix:** `/kcm` **Framework:** Ace3 (AceAddon, AceEvent, AceDB, AceConsole, AceConfig) **Version:** 1.3.0 **Locale:** English only
+**Slash prefix:** `/cm` (alias: `/consumablemaster`) **Framework:** Ace3 (AceAddon, AceEvent, AceDB, AceConsole, AceConfig) **Version:** 1.3.0 **Locale:** English only
 
 ## What it does
 
@@ -53,26 +53,28 @@ Macro writes that would land during combat are queued and flushed on `PLAYER_REG
 2.  Launch the game. The addon initializes on login — first `PLAYER_ENTERING_WORLD` scans bags, discovers known items, and writes all eight macros.
 3.  Drag the new `KCM_*` macros onto your action bars from the macro UI (or use the draggable icon at the top of each category page in the settings panel).
 
-All settings live at **Escape → Options → AddOns → Consumable Master** (or `/kcm config`).
+All settings live at **Escape → Options → AddOns → Consumable Master** (or `/cm config`).
 
 ## Slash commands
 
+`/cm` is the short form; `/consumablemaster` is a long-form alias that accepts the same subcommands. Every chat line the addon emits — slash output, in-combat notices, the empty-state stub fired when a macro has no usable pick — is prefixed with a cyan `[CM]` tag for easy filtering.
+
 | Command            |What it does                                                                                                                 |
 | ------------------ |---------------------------------------------------------------------------------------------------------------------------- |
-| <code>/kcm</code>  |Show help.                                                                                                                   |
-| <code>/kcm config</code> |Open the settings panel (priority lists, spec selector, add-by-ID).                                                          |
-| <code>/kcm resync</code> |Force a full rescan: invalidate tooltip cache, re-discover, recompute picks (macros are re-issued only if the pick changes). |
-| <code>/kcm rewritemacros</code> |Force an unconditional rewrite of every KCM macro body + stored icon. Use when an action-bar icon looks stale.               |
-| <code>/kcm reset</code> |Confirm-and-reset every priority list and stat override to defaults.                                                         |
-| <code>/kcm debug</code> |Toggle verbose logging.                                                                                                      |
-| <code>/kcm version</code> |Print the addon version.                                                                                                     |
-| <code>/kcm dump &lt;target&gt;</code> |Inspect internal state. Targets: <code>categories</code>, <code>statpriority</code>, <code>bags</code>, <code>item &lt;id&gt;</code>, <code>pick &lt;catKey&gt;</code>. |
+| <code>/cm</code>  |Show help.                                                                                                                   |
+| <code>/cm config</code> |Open the settings panel (priority lists, spec selector, add-by-ID).                                                          |
+| <code>/cm resync</code> |Force a full rescan: invalidate tooltip cache, re-discover, recompute picks (macros are re-issued only if the pick changes). |
+| <code>/cm rewritemacros</code> |Force an unconditional rewrite of every KCM macro body + stored icon. Use when an action-bar icon looks stale.               |
+| <code>/cm reset</code> |Confirm-and-reset every priority list and stat override to defaults.                                                         |
+| <code>/cm debug</code> |Toggle verbose logging.                                                                                                      |
+| <code>/cm version</code> |Print the addon version.                                                                                                     |
+| <code>/cm dump &lt;target&gt;</code> |Inspect internal state. Targets: <code>categories</code>, <code>statpriority</code>, <code>bags</code>, <code>item &lt;id&gt;</code>, <code>pick &lt;catKey&gt;</code>. |
 
 ### General
 
-*   **Debug mode** — toggle verbose chat logging. Equivalent to `/kcm debug`.
-*   **Force resync** — invalidate the tooltip cache, re-run auto-discovery against your bags, and recompute every category's pick. Macros are re-issued only when the pick or body actually changes. Equivalent to `/kcm resync`. Blocked in combat.
-*   **Force rewrite macros** — unconditionally re-issue every `KCM_*` macro (body + stored icon), bypassing the "unchanged" cache. Use when an action-bar icon looks stale (e.g. ElvUI held the previous static texture across an upgrade). Equivalent to `/kcm rewritemacros`. Blocked in combat. A `/reload` afterwards guarantees the action-bar framework re-queries every button.
+*   **Debug mode** — toggle verbose chat logging. Equivalent to `/cm debug`.
+*   **Force resync** — invalidate the tooltip cache, re-run auto-discovery against your bags, and recompute every category's pick. Macros are re-issued only when the pick or body actually changes. Equivalent to `/cm resync`. Blocked in combat.
+*   **Force rewrite macros** — unconditionally re-issue every `KCM_*` macro (body + stored icon), bypassing the "unchanged" cache. Use when an action-bar icon looks stale (e.g. ElvUI held the previous static texture across an upgrade). Equivalent to `/cm rewritemacros`. Blocked in combat. A `/reload` afterwards guarantees the action-bar framework re-queries every button.
 *   **Reset all priorities** — with confirmation, wipe every added / blocked / pinned entry and every stat-priority override. Seed defaults are restored.
 
 ### Stat Priority
@@ -115,7 +117,7 @@ Every recompute runs this pipeline per category:
     *   **Healthstone:** hard-coded preference table (modern auto-leveling Healthstone > legacy fallback), + ilvl tiebreak.
     *   **Spell entries:** a fixed score that outranks every item. Spells never compete with items on value — so Recuperate sits above every food by default. You can pin items above a spell if you prefer.
 3.  **Merge pins.** When you reorder rows with ↑ / ↓ in the settings panel, the addon writes pins of `{itemID, position}`. Pins override the Ranker order — pinned entries land at their requested position and non-pinned items fill the gaps in score order.
-4.  **Walk the final list** for the first entry you actually own. Items check bag counts; spells check `IsPlayerSpell` (class / spec / talent-granted). That first-owned entry becomes the macro body. If you own none, the macro prints a friendly `KCM: no <category>` stub so the slot stays valid.
+4.  **Walk the final list** for the first entry you actually own. Items check bag counts; spells check `IsPlayerSpell` (class / spec / talent-granted). That first-owned entry becomes the macro body. If you own none, the macro prints a friendly cyan `[CM] no <category>` stub so the slot stays valid.
 
 Hovering the **blue info button** on any row shows the full per-item score breakdown (each contributing signal and a one-line summary of the scoring rule), so you can see exactly why an entry landed where it did.
 
@@ -165,15 +167,15 @@ By design. Immediate restores always outrank HOT pots unless the HOT's total is 
 
 **My action bar shows the cooking-pot icon instead of the picked item's icon.**
 
-Run **Settings → General → Force rewrite macros** (or `/kcm rewritemacros`) and then `/reload`. If you're upgrading from v1.1.0, the first pipeline run auto-migrates each macro's stored icon to the `?` sentinel, but some action-bar frameworks (notably ElvUI and Bartender) cache the texture until the button is re-rendered — `/reload` forces a refresh.
+Run **Settings → General → Force rewrite macros** (or `/cm rewritemacros`) and then `/reload`. If you're upgrading from v1.1.0, the first pipeline run auto-migrates each macro's stored icon to the `?` sentinel, but some action-bar frameworks (notably ElvUI and Bartender) cache the texture until the button is re-rendered — `/reload` forces a refresh.
 
 **The macro shows the cooking pot but I _do_ own the item.**
 
-Run `/kcm dump pick <catKey>` (e.g. `/kcm dump pick FLASK`). The output lists every candidate with its score, an `[owned]` tag if it's in your bags, and the `<-- pick` marker on the winner. If the item doesn't appear in the list at all, it's either blocked (remove it with × from another category, or Reset category) or its tooltip hasn't hydrated yet (`/kcm dump item <itemID>` shows the parsed fields — if `pending: tooltip data not yet loaded` appears, wait a second and retry).
+Run `/cm dump pick <catKey>` (e.g. `/cm dump pick FLASK`). The output lists every candidate with its score, an `[owned]` tag if it's in your bags, and the `<-- pick` marker on the winner. If the item doesn't appear in the list at all, it's either blocked (remove it with × from another category, or Reset category) or its tooltip hasn't hydrated yet (`/cm dump item <itemID>` shows the parsed fields — if `pending: tooltip data not yet loaded` appears, wait a second and retry).
 
 **I just looted a better food / flask but the macro didn't update.**
 
-The pipeline is debounced on `BAG_UPDATE_DELAYED`; give it a frame. If still nothing, `/kcm resync` forces a full rescan. If the pick was made in combat, the macro write is deferred until you leave combat (`PLAYER_REGEN_ENABLED`) — that's a hard restriction of the protected macro API, not a bug.
+The pipeline is debounced on `BAG_UPDATE_DELAYED`; give it a frame. If still nothing, `/cm resync` forces a full rescan. If the pick was made in combat, the macro write is deferred until you leave combat (`PLAYER_REGEN_ENABLED`) — that's a hard restriction of the protected macro API, not a bug.
 
 **My macro body changed but my action bar didn't.**
 
@@ -181,9 +183,9 @@ The pipeline is debounced on `BAG_UPDATE_DELAYED`; give it a frame. If still not
 
 **I swapped specs but `KCM_FLASK` / `KCM_CMBT_POT` / `KCM_STAT_FOOD` didn't update.**
 
-Spec-aware categories recompute on `PLAYER_SPECIALIZATION_CHANGED`. If that event didn't fire (rare — typically a Blizzard bug), `/kcm resync` will pick up the new spec's stat priority. Verify the viewed spec on the **Stat Priority** page matches your current spec.
+Spec-aware categories recompute on `PLAYER_SPECIALIZATION_CHANGED`. If that event didn't fire (rare — typically a Blizzard bug), `/cm resync` will pick up the new spec's stat priority. Verify the viewed spec on the **Stat Priority** page matches your current spec.
 
-**`/kcm dump item <id>` shows a subType the addon doesn't classify.**
+**`/cm dump item <id>` shows a subType the addon doesn't classify.**
 
 Most likely Midnight renamed the subtype string. The matcher strings live in `Classifier.lua` (`ST_*` constants). Please file an issue with the `subType` from the dump output.
 
@@ -193,9 +195,9 @@ Blizzard caps every macro body at 255 characters. The addon falls back to the em
 
 **I hit "gave up on `KCM_X` after 3 failed writes".**
 
-The macro's `EditMacro` call is being rejected three times across combat flushes. This is almost always a Blizzard bug or another addon tainting the macro APIs. Run `/kcm debug`, reproduce, and file an issue with the debug log — the raw `EditMacro` return value is captured there.
+The macro's `EditMacro` call is being rejected three times across combat flushes. This is almost always a Blizzard bug or another addon tainting the macro APIs. Run `/cm debug`, reproduce, and file an issue with the debug log — the raw `EditMacro` return value is captured there.
 
-**`/kcm reset` or "Reset all priorities" says it didn't work.**
+**`/cm reset` or "Reset all priorities" says it didn't work.**
 
 Both paths route through `KCM.ResetAllToDefaults` in `Core.lua`. If the function returns false, `KCM.db` / `KCM.db.profile` isn't ready — reload and try again. This should only happen during a failed initial load.
 
@@ -213,8 +215,8 @@ Please report any issues in the [Issues](https://github.com/tusharsaxena/consuma
 
 *   Two new "all-in-one" macros: `KCM_HP_AIO` and `KCM_MP_AIO`. `KCM_HP_AIO` runs `/castsequence reset=combat` over Healthstone then Healing Potion in combat and fires the Food pick out of combat — driven by `[combat]` / `[nocombat]` macro conditionals so one button covers the full heal rotation. `KCM_MP_AIO` does the equivalent for Mana Potion / Drink. Picks come from the existing single-category pipeline; whatever the standalone `KCM_FOOD` macro is currently picking is what the AIO uses out of combat.
 *   New **AIO Health** and **AIO Mana** settings panels (after Stat Food). Each panel has _In Combat_ and _Out of Combat_ sections; sub-categories are locked to their section but can be toggled on/off and reordered within it. Each row is a single line — `KCMItemRow` preview on the left, `Enabled` toggle and ↑/↓ reorder on the right. When a sub-category has no current pick the row falls back to the sub-category's display name (so a row stays identifiable even when the underlying macro is empty). The page sub-header explicitly notes that ranking lives on each individual category's panel, not here.
-*   Sub-category steps with no current pick (e.g. no Healthstone in bags) drop out of the macro body so `/castsequence` doesn't jam on an unusable step. If one combat-state side ends up entirely empty (e.g. all out-of-combat sub-categories disabled) but the other still has picks, the macro emits a Lua-conditional `/run` line that prints `KCM: no AIO Health option out of combat` (or the equivalent in-combat variant) when clicked from the empty side — same chat-print behaviour the single-category macros use as their empty-state stub. If both sides end up empty, the macro falls back to the regular empty-state body and the cooking-pot icon.
-*   `/kcm dump pick hp_aio` / `/kcm dump pick mp_aio` print the configured order, per-sub-cat pick, and the resulting macro body (including the per-section fallback line when present).
+*   Sub-category steps with no current pick (e.g. no Healthstone in bags) drop out of the macro body so `/castsequence` doesn't jam on an unusable step. If one combat-state side ends up entirely empty (e.g. all out-of-combat sub-categories disabled) but the other still has picks, the macro emits a Lua-conditional `/run` line that prints `[CM] no AIO Health option out of combat` (or the equivalent in-combat variant) when clicked from the empty side — same chat-print behaviour the single-category macros use as their empty-state stub. If both sides end up empty, the macro falls back to the regular empty-state body and the cooking-pot icon.
+*   `/cm dump pick hp_aio` / `/cm dump pick mp_aio` print the configured order, per-sub-cat pick, and the resulting macro body (including the per-section fallback line when present).
 
 **1.2.1**
 
@@ -223,7 +225,7 @@ Please report any issues in the [Issues](https://github.com/tusharsaxena/consuma
 **1.2.0**
 
 *   Action-bar icon fix: active macros now store the `?` sentinel icon (fileID `134400`) so `#showtooltip` can drive the action-bar button — the picked flask / potion / food icon finally renders on ElvUI, Bartender, and any other `GetActionTexture`\-based bar. Empty-state macros continue to store the cooking-pot fallback (no `#showtooltip` in the body). Existing installs migrate automatically on the first pipeline run after upgrade: the new `lastIcon` field in `macroState` mismatches, which triggers one `EditMacro` per category. If a bar still shows a stale icon, `/reload` or use the new Force rewrite macros button.
-*   New command **`/kcm rewritemacros`** (also available as **Settings → General → Force rewrite macros**) — clears the cached body/icon fingerprints in `macroState` plus the combat-deferral queue, then re-runs the pipeline so every macro is re-issued unconditionally. Use this when the "Force resync" path skips a write because the body hasn't changed but you still want a fresh `EditMacro` call.
+*   New command **`/cm rewritemacros`** (also available as **Settings → General → Force rewrite macros**) — clears the cached body/icon fingerprints in `macroState` plus the combat-deferral queue, then re-runs the pipeline so every macro is re-issued unconditionally. Use this when the "Force resync" path skips a write because the body hasn't changed but you still want a fresh `EditMacro` call.
 *   Options-panel drag widget: the small icon above each category page now renders the picked item's / spell's texture directly (via `C_Item.GetItemIconByID` / `C_Spell.GetSpellTexture`), since the stored macro icon is now the meaningless `?` sentinel for active macros. Empty-state categories still show the cooking pot.
 *   Force resync tooltip clarified — it invalidates the tooltip cache, re-runs auto-discovery, and recomputes picks, but re-issues macros only when the body or pick changes. For an unconditional rewrite, use Force rewrite macros.
 
