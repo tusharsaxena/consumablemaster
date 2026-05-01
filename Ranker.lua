@@ -60,7 +60,7 @@ local PRIMARY_WEIGHT = 1000
 -- `scoreCache.fields[id]` memoizes a single GetItemInfo + TooltipCache.Get
 -- result across every scorer call that touches the same itemID within one
 -- Pipeline.Recompute pass. Callers that pass `scoreCache = nil` get the
--- original uncached path — keeps /kcm dump, Explain, and panel renders
+-- original uncached path — keeps /cm dump, Explain, and panel renders
 -- behaviour-identical.
 local function itemFields(itemID, scoreCache)
     if scoreCache and scoreCache.fields and scoreCache.fields[itemID] then
@@ -276,7 +276,7 @@ end
 -- provided. For HP_POT / MP_POT the scorer's immediate-bonus gate depends
 -- on knowing the best-immediate amount in the set; other categories use
 -- ctx for specPriority and this helper leaves those fields untouched.
--- Callers that invoke R.Score per item (e.g. the /kcm dump pick debug view)
+-- Callers that invoke R.Score per item (e.g. the /cm dump pick debug view)
 -- should route through here so displayed scores match what SortCandidates
 -- produced.
 function R.BuildContext(catKey, itemIDs, existing, scoreCache)

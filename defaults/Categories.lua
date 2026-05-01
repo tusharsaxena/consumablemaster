@@ -31,7 +31,7 @@ KCM.Categories.LIST = {
         specAware   = false,
         rankerKey   = "FOOD_BASIC",
         classifier  = "FOOD_BASIC",
-        emptyText   = "/run print('KCM: no food in bags')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no food in bags')",
     },
     {
         key         = "DRINK",
@@ -40,7 +40,7 @@ KCM.Categories.LIST = {
         specAware   = false,
         rankerKey   = "DRINK",
         classifier  = "DRINK",
-        emptyText   = "/run print('KCM: no drink in bags')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no drink in bags')",
     },
     {
         key         = "HP_POT",
@@ -49,7 +49,7 @@ KCM.Categories.LIST = {
         specAware   = false,
         rankerKey   = "HP_POT",
         classifier  = "HP_POT",
-        emptyText   = "/run print('KCM: no healing potion in bags')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no healing potion in bags')",
     },
     {
         key         = "MP_POT",
@@ -58,7 +58,7 @@ KCM.Categories.LIST = {
         specAware   = false,
         rankerKey   = "MP_POT",
         classifier  = "MP_POT",
-        emptyText   = "/run print('KCM: no mana potion in bags')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no mana potion in bags')",
     },
     {
         key         = "HS",
@@ -67,7 +67,7 @@ KCM.Categories.LIST = {
         specAware   = false,
         rankerKey   = "HS",
         classifier  = "HS",
-        emptyText   = "/run print('KCM: no healthstone in bags')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no healthstone in bags')",
     },
     {
         key         = "FLASK",
@@ -76,7 +76,7 @@ KCM.Categories.LIST = {
         specAware   = true,
         rankerKey   = "FLASK",
         classifier  = "FLASK",
-        emptyText   = "/run print('KCM: no flask for this spec')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no flask for this spec')",
     },
     {
         key         = "CMBT_POT",
@@ -85,7 +85,7 @@ KCM.Categories.LIST = {
         specAware   = true,
         rankerKey   = "CMBT_POT",
         classifier  = "CMBT_POT",
-        emptyText   = "/run print('KCM: no combat potion for this spec')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no combat potion for this spec')",
     },
     {
         key         = "STAT_FOOD",
@@ -94,7 +94,7 @@ KCM.Categories.LIST = {
         specAware   = true,
         rankerKey   = "STAT_FOOD",
         classifier  = "STAT_FOOD",
-        emptyText   = "/run print('KCM: no stat food for this spec')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no stat food for this spec')",
     },
     {
         key         = "HP_AIO",
@@ -105,7 +105,7 @@ KCM.Categories.LIST = {
             inCombat    = { "HS", "HP_POT" },
             outOfCombat = { "FOOD" },
         },
-        emptyText   = "/run print('KCM: no AIO health option available')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no AIO health option available')",
     },
     {
         key         = "MP_AIO",
@@ -116,7 +116,7 @@ KCM.Categories.LIST = {
             inCombat    = { "MP_POT" },
             outOfCombat = { "DRINK" },
         },
-        emptyText   = "/run print('KCM: no AIO mana option available')",
+        emptyText   = "/run print('|cff00ffff[CM]|r no AIO mana option available')",
     },
 }
 

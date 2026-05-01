@@ -1,11 +1,17 @@
--- SlashCommands.lua — /kcm dispatcher. Registered via AceConsole in Core:OnInitialize.
+-- SlashCommands.lua — /cm (and /consumablemaster) dispatcher. Registered via AceConsole in Core:OnInitialize.
 
 local KCM = _G.KCM
 KCM.SlashCommands = {}
 
-local PREFIX = "|cffff8800[KCM]|r "
+local PREFIX = "|cff00ffff[CM]|r "
 
--- Shared confirmation popup for /kcm reset. preferredIndex = 3 dodges the
+-- Every chat line we emit goes through this so the [CM] tag is unconditional —
+-- including dump body rows and help-table rows that don't manually prepend it.
+local function say(s)
+    print(PREFIX .. s)
+end
+
+-- Shared confirmation popup for /cm reset. preferredIndex = 3 dodges the
 -- taint cascade that affects popup slots 1/2 when other addons have used
 -- them earlier in the session (a well-known Ace3 footgun around any
 -- StaticPopup that mutates SavedVariables).
@@ -26,9 +32,9 @@ StaticPopupDialogs["KCM_CONFIRM_RESET"] = {
     button2 = NO,
     OnAccept = function()
         if KCM.ResetAllToDefaults and KCM.ResetAllToDefaults("slash_reset") then
-            print(PREFIX .. "Reset complete — defaults restored.")
+            say("Reset complete — defaults restored.")
         else
-            print(PREFIX .. "Reset failed (DB not ready).")
+            say("Reset failed (DB not ready).")
         end
     end,
     timeout      = 0,
@@ -40,7 +46,7 @@ StaticPopupDialogs["KCM_CONFIRM_RESET"] = {
 -- ---------------------------------------------------------------------------
 -- Dump targets: single source of truth. Each entry has a one-line summary
 -- (shown in help) and a handler. Add new dump targets here and they appear
--- in both `/kcm` and `/kcm dump` help output automatically.
+-- in both `/cm` and `/cm dump` help output automatically.
 -- ---------------------------------------------------------------------------
 
 local DUMP_TARGETS = {}
@@ -49,14 +55,14 @@ DUMP_TARGETS.categories = {
     summary = "category metadata table",
     run = function()
         if not (KCM.Categories and KCM.Categories.LIST) then
-            print(PREFIX .. "KCM.Categories.LIST not loaded.")
+            say("KCM.Categories.LIST not loaded.")
             return
         end
         if DevTools_Dump then
             DevTools_Dump(KCM.Categories.LIST)
         else
             for i, row in ipairs(KCM.Categories.LIST) do
-                print(("  [%d] %s  macro=%s  display=%q  specAware=%s")
+                say(("  [%d] %s  macro=%s  display=%q  specAware=%s")
                     :format(i, row.key, row.macroName, row.displayName, tostring(row.specAware)))
             end
         end
@@ -67,22 +73,22 @@ DUMP_TARGETS.statpriority = {
     summary = "stat priority for current spec",
     run = function()
         if not (KCM.SpecHelper and KCM.SpecHelper.GetCurrent) then
-            print(PREFIX .. "KCM.SpecHelper not loaded.")
+            say("KCM.SpecHelper not loaded.")
             return
         end
         local classID, specID, specKey, specName = KCM.SpecHelper.GetCurrent()
         if not specKey then
-            print(PREFIX .. "No active spec (low-level character?).")
+            say("No active spec (low-level character?).")
             return
         end
         local priority = KCM.SpecHelper.GetStatPriority(specKey)
-        print(PREFIX .. ("spec: %s  (classID=%s  specID=%s  key=%s)")
+        say(("spec: %s  (classID=%s  specID=%s  key=%s)")
             :format(specName or "?", tostring(classID), tostring(specID), specKey))
         if DevTools_Dump then
             DevTools_Dump(priority)
         else
-            print(("  primary: %s"):format(tostring(priority.primary)))
-            print(("  secondary: %s"):format(table.concat(priority.secondary or {}, ", ")))
+            say(("  primary: %s"):format(tostring(priority.primary)))
+            say(("  secondary: %s"):format(table.concat(priority.secondary or {}, ", ")))
         end
     end,
 }
@@ -91,7 +97,7 @@ DUMP_TARGETS.bags = {
     summary = "bag contents as itemID -> count",
     run = function()
         if not (KCM.BagScanner and KCM.BagScanner.Scan) then
-            print(PREFIX .. "KCM.BagScanner not loaded.")
+            say("KCM.BagScanner not loaded.")
             return
         end
         local counts = KCM.BagScanner.Scan()
@@ -99,30 +105,30 @@ DUMP_TARGETS.bags = {
             DevTools_Dump(counts)
         else
             for id, n in pairs(counts) do
-                print(("  %d x %d"):format(id, n))
+                say(("  %d x %d"):format(id, n))
             end
         end
     end,
 }
 
 DUMP_TARGETS.item = {
-    summary = "parsed tooltip + raw lines for <itemID> (e.g. /kcm dump item 241304)",
+    summary = "parsed tooltip + raw lines for <itemID> (e.g. /cm dump item 241304)",
     usage   = "item <itemID>",
     run = function(arg)
         local id = tonumber(arg or "")
         if not id then
-            print(PREFIX .. "usage: /kcm dump item <itemID>")
+            say("usage: /cm dump item <itemID>")
             return
         end
         if not (KCM.TooltipCache and KCM.TooltipCache.Get) then
-            print(PREFIX .. "KCM.TooltipCache not loaded.")
+            say("KCM.TooltipCache not loaded.")
             return
         end
         local entry = KCM.TooltipCache.Get(id)
         local name = (entry and entry.itemName)
             or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id))
             or "?"
-        print(PREFIX .. ("item %d  (%s)"):format(id, tostring(name)))
+        say(("item %d  (%s)"):format(id, tostring(name)))
 
         -- Dump GetItemInfoInstant — what Classifier uses for subType. This
         -- is the fastest way to tell why an item does/doesn't match a
@@ -130,28 +136,28 @@ DUMP_TARGETS.item = {
         if C_Item and C_Item.GetItemInfoInstant then
             local iName, iType, iSubType, iEquip, iIcon, iClass, iSub =
                 C_Item.GetItemInfoInstant(id)
-            print(("  instant: type=%q  subType=%q  classID=%s  subClassID=%s")
+            say(("  instant: type=%q  subType=%q  classID=%s  subClassID=%s")
                 :format(tostring(iType), tostring(iSubType),
                         tostring(iClass), tostring(iSub)))
             local hits = KCM.Classifier and KCM.Classifier.MatchAny
                 and KCM.Classifier.MatchAny(id) or {}
             if #hits > 0 then
-                print(("  classified: %s"):format(table.concat(hits, ", ")))
+                say(("  classified: %s"):format(table.concat(hits, ", ")))
             else
-                print("  classified: |cffff4444(none)|r")
+                say("  classified: |cffff4444(none)|r")
             end
         end
 
         if entry and entry.pending then
-            print("  pending: tooltip data not yet loaded — try again in a moment.")
+            say("  pending: tooltip data not yet loaded — try again in a moment.")
         elseif entry then
             local ok, reason = KCM.TooltipCache.IsUsableByPlayer(id)
             local playerLvl = UnitLevel("player") or 0
             if ok then
-                print(("  usable: yes  (minLevel=%d, you=%d)")
+                say(("  usable: yes  (minLevel=%d, you=%d)")
                     :format(entry.minLevel or 0, playerLvl))
             else
-                print(("  usable: no   (%s)"):format(tostring(reason)))
+                say(("  usable: no   (%s)"):format(tostring(reason)))
             end
         end
         if DevTools_Dump then
@@ -165,14 +171,14 @@ DUMP_TARGETS.item = {
         if C_TooltipInfo and C_TooltipInfo.GetItemByID then
             local data = C_TooltipInfo.GetItemByID(id)
             if data and data.lines and #data.lines > 0 then
-                print(("  raw tooltip lines (%d):"):format(#data.lines))
+                say(("  raw tooltip lines (%d):"):format(#data.lines))
                 for i, line in ipairs(data.lines) do
                     local left = line.leftText or ""
                     local right = line.rightText or ""
                     if right ~= "" then
-                        print(("    [%2d] L=%q  R=%q"):format(i, left, right))
+                        say(("    [%2d] L=%q  R=%q"):format(i, left, right))
                     else
-                        print(("    [%2d] %q"):format(i, left))
+                        say(("    [%2d] %q"):format(i, left))
                     end
                 end
             end
@@ -181,10 +187,10 @@ DUMP_TARGETS.item = {
 }
 
 -- ---------------------------------------------------------------------------
--- /kcm dump pick <catKey>
+-- /cm dump pick <catKey>
 -- Runs the full selector pipeline (candidates → rank → pin merge → first
 -- owned) and prints the effective priority list with ranker scores, owned
--- flags, and the pick highlight. Folds in what used to be /kcm dump rank —
+-- flags, and the pick highlight. Folds in what used to be /cm dump rank —
 -- since the ranker score is now shown inline, there's no need for a
 -- separate seed-only ranking command.
 -- ---------------------------------------------------------------------------
@@ -195,24 +201,24 @@ DUMP_TARGETS.pick = {
     run = function(arg)
         arg = (arg or ""):match("^(%S*)") or ""
         if arg == "" then
-            print(PREFIX .. "usage: /kcm dump pick <catKey>  (e.g. flask, hp_pot, stat_food)")
+            say("usage: /cm dump pick <catKey>  (e.g. flask, hp_pot, stat_food)")
             if KCM.Categories and KCM.Categories.LIST then
                 local keys = {}
                 for _, cat in ipairs(KCM.Categories.LIST) do
                     table.insert(keys, cat.key:lower())
                 end
-                print("  known: " .. table.concat(keys, ", "))
+                say("  known: " .. table.concat(keys, ", "))
             end
             return
         end
         local catKey = arg:upper()
         local cat = KCM.Categories and KCM.Categories.Get and KCM.Categories.Get(catKey)
         if not cat then
-            print(PREFIX .. "unknown category: |cffffff00" .. arg .. "|r")
+            say("unknown category: |cffffff00" .. arg .. "|r")
             return
         end
         if not (KCM.Selector and KCM.Selector.GetEffectivePriority) then
-            print(PREFIX .. "KCM.Selector not loaded.")
+            say("KCM.Selector not loaded.")
             return
         end
 
@@ -221,11 +227,11 @@ DUMP_TARGETS.pick = {
         -- SetCompositeMacro would write. No effective-priority list because
         -- composites don't have items of their own.
         if cat.composite then
-            print(PREFIX .. ("%s (composite)"):format(catKey))
+            say(("%s (composite)"):format(catKey))
             local cfg = KCM.db and KCM.db.profile and KCM.db.profile.categories
                 and KCM.db.profile.categories[cat.key]
             if not cfg then
-                print(PREFIX .. "no DB bucket for composite category.")
+                say("no DB bucket for composite category.")
                 return
             end
             local function describePick(refKey)
@@ -247,15 +253,15 @@ DUMP_TARGETS.pick = {
                 { label = "Out of Combat", orderField = "orderOutOfCombat" },
             }
             for _, section in ipairs(sections) do
-                print(("  %s:"):format(section.label))
+                say(("  %s:"):format(section.label))
                 local arr = cfg[section.orderField] or {}
                 if #arr == 0 then
-                    print("    (none)")
+                    say("    (none)")
                 else
                     for i, ref in ipairs(arr) do
                         local enabled = not (cfg.enabled and cfg.enabled[ref] == false)
                         local tag = enabled and "|cff44ff44[on]|r " or "|cff888888[off]|r"
-                        print(("    %d. %s %s -> %s"):format(i, tag, ref, describePick(ref)))
+                        say(("    %d. %s %s -> %s"):format(i, tag, ref, describePick(ref)))
                     end
                 end
             end
@@ -263,12 +269,12 @@ DUMP_TARGETS.pick = {
                 local body = KCM.MacroManager.BuildCompositeBody(cat,
                     function(refKey) return KCM.Selector.PickBestForCategory(refKey) end)
                 if body then
-                    print("  macro body:")
+                    say("  macro body:")
                     for line in body:gmatch("[^\n]+") do
-                        print("    " .. line)
+                        say("    " .. line)
                     end
                 else
-                    print(PREFIX .. "no usable picks — macro would show empty-state stub.")
+                    say("no usable picks — macro would show empty-state stub.")
                 end
             end
             return
@@ -283,16 +289,16 @@ DUMP_TARGETS.pick = {
             local _, _, specKey, specName = KCM.SpecHelper.GetCurrent()
             if specKey then
                 ctx = { specPriority = KCM.SpecHelper.GetStatPriority(specKey) }
-                print(PREFIX .. ("%s for spec %s (%s)"):format(
+                say(("%s for spec %s (%s)"):format(
                     catKey, specName or "?", specKey))
-                print(("  primary=%s  secondary=%s"):format(
+                say(("  primary=%s  secondary=%s"):format(
                     tostring(ctx.specPriority.primary),
                     table.concat(ctx.specPriority.secondary or {}, ">")))
             else
-                print(PREFIX .. ("%s (no active spec)"):format(catKey))
+                say(("%s (no active spec)"):format(catKey))
             end
         else
-            print(PREFIX .. ("%s"):format(catKey))
+            say(("%s"):format(catKey))
         end
 
         local priority = KCM.Selector.GetEffectivePriority(catKey)
@@ -305,7 +311,7 @@ DUMP_TARGETS.pick = {
             ctx = KCM.Ranker.BuildContext(catKey, priority, ctx)
         end
 
-        print(("  effective priority (%d entries):"):format(#priority))
+        say(("  effective priority (%d entries):"):format(#priority))
         for i, id in ipairs(priority) do
             local name, displayID, have
             if KCM.ID and KCM.ID.IsSpell(id) then
@@ -327,10 +333,10 @@ DUMP_TARGETS.pick = {
             local score = (KCM.Ranker and KCM.Ranker.Score and KCM.Ranker.Score(catKey, id, ctx)) or 0
             local haveTag = have and "|cff44ff44[owned]|r" or "|cff888888[---]|r"
             local pickTag = (id == pick) and "  |cffffd100<-- pick|r" or ""
-            print(("  %2d. %s %8.1f  %s  %s%s"):format(i, haveTag, score, displayID, name, pickTag))
+            say(("  %2d. %s %8.1f  %s  %s%s"):format(i, haveTag, score, displayID, name, pickTag))
         end
         if not pick then
-            print(PREFIX .. "no owned item — macro would show empty-state stub.")
+            say("no owned item — macro would show empty-state stub.")
         end
     end,
 }
@@ -348,28 +354,28 @@ local function printDumpLines(prefix)
         local target = DUMP_TARGETS[name]
         if target then
             local label = target.usage or name
-            print(("  |cffffff00%s%s|r%s %s")
+            say(("  |cffffff00%s%s|r%s |cffffffff%s|r")
                 :format(prefix, label, string.rep(" ", math.max(1, 18 - #label)), target.summary))
         end
     end
 end
 
 local function printHelp()
-    print(PREFIX .. "|cffffd100Ka0s Consumable Master|r — commands:")
-    print("  |cffffff00/kcm|r             show this help")
-    print("  |cffffff00/kcm config|r      open settings panel")
-    print("  |cffffff00/kcm debug|r       toggle debug mode")
-    print("  |cffffff00/kcm resync|r      force macros to resync from bags")
-    print("  |cffffff00/kcm rewritemacros|r  force a full rewrite of every KCM macro (icon + body)")
-    print("  |cffffff00/kcm reset|r       reset all priority lists to defaults")
-    print("  |cffffff00/kcm version|r     print addon version")
-    print("  |cffffff00/kcm dump|r        dump internal state. subcommands:")
-    printDumpLines("/kcm dump ")
+    say("|cffffd100Ka0s Consumable Master|r — commands:")
+    say("  |cffffff00/cm|r              |cffffffffshow this help (alias: |r|cffffff00/consumablemaster|r|cffffffff)|r")
+    say("  |cffffff00/cm config|r       |cffffffffopen settings panel|r")
+    say("  |cffffff00/cm debug|r        |cfffffffftoggle debug mode|r")
+    say("  |cffffff00/cm resync|r       |cffffffffforce macros to resync from bags|r")
+    say("  |cffffff00/cm rewritemacros|r  |cffffffffforce a full rewrite of every KCM macro (icon + body)|r")
+    say("  |cffffff00/cm reset|r        |cffffffffreset all priority lists to defaults|r")
+    say("  |cffffff00/cm version|r      |cffffffffprint addon version|r")
+    say("  |cffffff00/cm dump|r         |cffffffffdump internal state. subcommands:|r")
+    printDumpLines("/cm dump ")
 end
 
 local function dumpHelp()
-    print(PREFIX .. "dump targets:")
-    printDumpLines("/kcm dump ")
+    say("dump targets:")
+    printDumpLines("/cm dump ")
 end
 
 -- ---------------------------------------------------------------------------
@@ -385,7 +391,7 @@ local function dumpDispatch(rest)
         return
     end
 
-    -- Shortcut: `/kcm dump <itemID>` routes to the `item` target.
+    -- Shortcut: `/cm dump <itemID>` routes to the `item` target.
     if tonumber(head) then
         DUMP_TARGETS.item.run(head)
         return
@@ -397,7 +403,7 @@ local function dumpDispatch(rest)
         return
     end
 
-    print(PREFIX .. "Unknown dump target: |cffffff00" .. head .. "|r")
+    say("Unknown dump target: |cffffff00" .. head .. "|r")
     dumpHelp()
 end
 
@@ -416,46 +422,46 @@ function KCM:OnSlashCommand(msg)
         KCM.Debug.Toggle()
     elseif cmd == "config" then
         if not (KCM.Options and KCM.Options.Open and KCM.Options.Open()) then
-            print(PREFIX .. "Settings panel unavailable.")
+            say("Settings panel unavailable.")
         end
     elseif cmd == "resync" then
         if InCombatLockdown and InCombatLockdown() then
-            print(PREFIX .. "in combat — macro writes deferred until regen.")
+            say("in combat — macro writes deferred until regen.")
         end
         if KCM.TooltipCache and KCM.TooltipCache.InvalidateAll then
             KCM.TooltipCache.InvalidateAll()
         end
         if KCM.Pipeline and KCM.Pipeline.RunAutoDiscovery then
             local n = KCM.Pipeline.RunAutoDiscovery("manual_resync")
-            print(PREFIX .. ("auto-discovery found %d new item(s)"):format(n))
+            say(("auto-discovery found %d new item(s)"):format(n))
         end
         if KCM.Pipeline and KCM.Pipeline.Recompute then
             KCM.Pipeline.Recompute("manual_resync")
-            print(PREFIX .. "recomputed all categories.")
+            say("recomputed all categories.")
         end
     elseif cmd == "rewritemacros" or cmd == "rewrite" then
         if InCombatLockdown and InCombatLockdown() then
-            print(PREFIX .. "in combat — macro writes deferred until regen.")
+            say("in combat — macro writes deferred until regen.")
         end
         if KCM.MacroManager and KCM.MacroManager.InvalidateState then
             KCM.MacroManager.InvalidateState()
         end
         if KCM.Pipeline and KCM.Pipeline.Recompute then
             KCM.Pipeline.Recompute("manual_rewrite")
-            print(PREFIX .. "rewrote all macros (body + icon). If action bar icons still look stale, /reload to force the bars to refresh.")
+            say("rewrote all macros (body + icon). If action bar icons still look stale, /reload to force the bars to refresh.")
         end
     elseif cmd == "reset" then
         if StaticPopup_Show then
             StaticPopup_Show("KCM_CONFIRM_RESET")
         else
-            print(PREFIX .. "StaticPopup unavailable.")
+            say("StaticPopup unavailable.")
         end
     elseif cmd == "version" then
-        print(PREFIX .. ("version %s"):format(tostring(KCM.VERSION or "?")))
+        say(("version %s"):format(tostring(KCM.VERSION or "?")))
     elseif cmd == "dump" then
         dumpDispatch(rest)
     else
-        print(PREFIX .. "Unknown command: |cffffff00" .. cmd .. "|r")
+        say("Unknown command: |cffffff00" .. cmd .. "|r")
         printHelp()
     end
 end

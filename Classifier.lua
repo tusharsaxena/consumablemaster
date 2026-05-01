@@ -3,7 +3,7 @@
 -- Given an itemID, decide which of the 8 managed categories (if any) it
 -- belongs to. Used by:
 --   * Selector (M5) — auto-discover bag items and slot them into categories.
---   * SlashCommands (/kcm dump / /kcm rank) — debug introspection.
+--   * SlashCommands (/cm dump / /cm rank) — debug introspection.
 --
 -- Every predicate reads from TooltipCache (parsed tooltip) and GetItemInfo
 -- (subType / quality / ilvl). Project scope is English-only, so subType is

@@ -61,7 +61,8 @@ KCM.dbDefaults = {
 
 function KCM:OnInitialize()
     self.db = LibStub("AceDB-3.0"):New("ConsumableMasterDB", KCM.dbDefaults, true)
-    self:RegisterChatCommand("kcm", "OnSlashCommand")
+    self:RegisterChatCommand("cm", "OnSlashCommand")
+    self:RegisterChatCommand("consumablemaster", "OnSlashCommand")
     if KCM.Options and KCM.Options.Register then
         KCM.Options.Register()
     end
@@ -116,7 +117,7 @@ function P.Recompute(reason)
     -- Per-pass score cache. `fields[id]` memoizes GetItemInfo +
     -- TooltipCache.Get so items appearing across multiple categories (pot
     -- HOT scans, overlapping seeds) don't re-parse tooltips. `[catKey][id]`
-    -- memoizes the per-category score. Passing nil (as /kcm dump / panel
+    -- memoizes the per-category score. Passing nil (as /cm dump / panel
     -- renders do) falls back to the uncached path.
     local scoreCache = { fields = {} }
     for _, cat in ipairs(KCM.Categories.LIST) do
@@ -226,13 +227,13 @@ local function runAutoDiscovery(reason)
     return discovered
 end
 
--- Expose for manual invocation from /kcm resync and tests.
+-- Expose for manual invocation from /cm resync and tests.
 KCM.Pipeline.RunAutoDiscovery = runAutoDiscovery
 KCM.Pipeline.DiscoverOne      = discoverOne
 
 -- Wipe every user customization and restore from dbDefaults. Preserves
 -- macroState so live macros aren't orphaned. Shared by the Options panel's
--- "Reset all priorities" execute and the /kcm reset StaticPopup — both
+-- "Reset all priorities" execute and the /cm reset StaticPopup — both
 -- paths land here to keep semantics identical regardless of entry point.
 --
 -- After the DB wipe we drive a full resync (not just a RequestRecompute):

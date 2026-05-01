@@ -245,7 +245,7 @@ local function buildGeneralArgs()
             type  = "toggle",
             order = 1,
             name  = "Debug mode",
-            desc  = "Print per-event diagnostics to chat. Same as /kcm debug.",
+            desc  = "Print per-event diagnostics to chat. Same as /cm debug.",
             width = "full",
             get   = function()
                 return KCM.Debug and KCM.Debug.IsOn and KCM.Debug.IsOn() or false
@@ -268,11 +268,11 @@ local function buildGeneralArgs()
                  .. "your bags, and recompute every category's pick. Macros are "
                  .. "re-issued only if the picked item or body actually changes "
                  .. "— use Force rewrite macros below to re-issue them "
-                 .. "unconditionally. Same as /kcm resync. Blocked in combat.",
+                 .. "unconditionally. Same as /cm resync. Blocked in combat.",
             width = "full",
             func  = function()
                 if InCombatLockdown and InCombatLockdown() then
-                    print("|cffff8800[KCM]|r in combat — resync deferred until regen.")
+                    print("|cff00ffff[CM]|r in combat — resync deferred until regen.")
                     return
                 end
                 if KCM.TooltipCache and KCM.TooltipCache.InvalidateAll then
@@ -294,11 +294,11 @@ local function buildGeneralArgs()
             name  = "Force rewrite macros",
             desc  = "Clear cached macro fingerprints and re-issue every KCM macro "
                  .. "(body + stored icon). Use this if a macro's action-bar icon "
-                 .. "looks stale. Same as /kcm rewritemacros. Blocked in combat.",
+                 .. "looks stale. Same as /cm rewritemacros. Blocked in combat.",
             width = "full",
             func  = function()
                 if InCombatLockdown and InCombatLockdown() then
-                    print("|cffff8800[KCM]|r in combat — macro writes deferred until regen.")
+                    print("|cff00ffff[CM]|r in combat — macro writes deferred until regen.")
                     return
                 end
                 if KCM.MacroManager and KCM.MacroManager.InvalidateState then
@@ -307,7 +307,7 @@ local function buildGeneralArgs()
                 if KCM.Pipeline and KCM.Pipeline.Recompute then
                     KCM.Pipeline.Recompute("options_rewrite")
                 end
-                print("|cffff8800[KCM]|r rewrote all macros. If action bar icons still look stale, /reload to force the bars to refresh.")
+                print("|cff00ffff[CM]|r rewrote all macros. If action bar icons still look stale, /reload to force the bars to refresh.")
                 O.Refresh()
             end,
         },
@@ -833,7 +833,7 @@ local function buildCategoryArgs(catKey)
             local id = tonumber(val)
             if not id then return end
             if cat.specAware and not specKey then
-                print("|cffff8800[KCM]|r spec-aware category: no active spec — can't add.")
+                print("|cff00ffff[CM]|r spec-aware category: no active spec — can't add.")
                 return
             end
             local kind = O._addKind[catKey] or "ITEM"
@@ -1197,7 +1197,7 @@ function O.Register()
     return true
 end
 
--- Opens the Blizzard settings panel directly to our page. Used by /kcm config.
+-- Opens the Blizzard settings panel directly to our page. Used by /cm config.
 function O.Open()
     local id = KCM._settingsCategoryID
     if type(id) ~= "number" then id = tonumber(id) end
@@ -1208,6 +1208,6 @@ function O.Open()
     -- Legacy fallback for clients where Settings.OpenToCategory isn't
     -- available. InterfaceOptionsFrame_OpenToCategory was removed in 10.x,
     -- so if Settings is missing we just print a hint.
-    print("|cffff8800[KCM]|r settings panel unavailable on this client; use /kcm.")
+    print("|cff00ffff[CM]|r settings panel unavailable on this client; use /cm.")
     return false
 end

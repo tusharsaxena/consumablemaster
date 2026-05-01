@@ -75,13 +75,13 @@ local function buildActiveBody(id)
         -- Spell name not yet resolvable (very rare — would imply the spell
         -- book hasn't hydrated). Emit a user-visible stub so the macro
         -- exists and the failure is observable rather than silent.
-        return ("#showtooltip\n/run print('KCM: spell %d name unavailable')"):format(spellID or 0)
+        return ("#showtooltip\n/run print('|cff00ffff[CM]|r spell %d name unavailable')"):format(spellID or 0)
     end
     return ("#showtooltip\n/use item:%d"):format(id)
 end
 
 local function buildEmptyBody(cat)
-    local text = (cat and cat.emptyText) or "/run print('KCM: no item available')"
+    local text = (cat and cat.emptyText) or "/run print('|cff00ffff[CM]|r no item available')"
     -- No `#showtooltip` here. With `#showtooltip` present and the stored icon
     -- set to `?` (our DYNAMIC_ICON for active macros), WoW tries to resolve
     -- the icon from the first /use or /cast — but the empty body is a plain
@@ -206,13 +206,13 @@ local function buildCompositeBody(cat, pickFor)
     -- them to /use, /cast, /castsequence, /click, /target, etc.
     if hasInCombat and not hasOutOfCombat then
         table.insert(lines,
-            ('/run if not InCombatLockdown() then print("KCM: no %s option out of combat") end')
+            ('/run if not InCombatLockdown() then print("|cff00ffff[CM]|r no %s option out of combat") end')
                 :format(cat.displayName))
     elseif hasOutOfCombat and not hasInCombat then
         -- Insert before any /use [nocombat] lines so the print path runs
         -- when in combat (the /use line still owns the [nocombat] state).
         table.insert(lines, 1,
-            ('/run if InCombatLockdown() then print("KCM: no %s option in combat") end')
+            ('/run if InCombatLockdown() then print("|cff00ffff[CM]|r no %s option in combat") end')
                 :format(cat.displayName))
     end
 
@@ -220,7 +220,7 @@ local function buildCompositeBody(cat, pickFor)
     return table.concat(lines, "\n")
 end
 
-M.BuildCompositeBody = buildCompositeBody  -- exposed for /kcm dump pick
+M.BuildCompositeBody = buildCompositeBody  -- exposed for /cm dump pick
 
 -- ---------------------------------------------------------------------------
 -- Combat-deferral queue
@@ -312,7 +312,7 @@ function M.SetMacro(macroName, itemID, catKey)
         end
         if catKey and not alreadyWarnedOversized[catKey] then
             alreadyWarnedOversized[catKey] = true
-            print(("|cffff8800[KCM]|r %s macro body exceeds 255 bytes — macro is inert until the picked entry's body fits. Please report this."):format(catKey))
+            print(("|cff00ffff[CM]|r %s macro body exceeds 255 bytes — macro is inert until the picked entry's body fits. Please report this."):format(catKey))
         end
         body = buildEmptyBody(cat)
         effectiveItemID = nil  -- body is now empty-state; stored icon must follow
@@ -408,7 +408,7 @@ function M.SetCompositeMacro(cat, scoreCache)
         end
         if catKey and not alreadyWarnedOversized[catKey] then
             alreadyWarnedOversized[catKey] = true
-            print(("|cffff8800[KCM]|r %s macro body exceeds 255 bytes — macro is inert until the composite body fits. Please report this."):format(catKey))
+            print(("|cff00ffff[CM]|r %s macro body exceeds 255 bytes — macro is inert until the composite body fits. Please report this."):format(catKey))
         end
         body = buildEmptyBody(cat)
         effectiveActive = false
@@ -496,7 +496,7 @@ function M.FlushPending()
         if not ok or result == "error" then
             entry.attempts = (entry.attempts or 0) + 1
             if entry.attempts >= MAX_FLUSH_ATTEMPTS then
-                print(("|cffff8800[KCM]|r gave up on %s after %d failed writes — check /kcm debug output."):format(name, entry.attempts))
+                print(("|cff00ffff[CM]|r gave up on %s after %d failed writes — check /cm debug output."):format(name, entry.attempts))
                 if KCM.Debug and KCM.Debug.Print then
                     KCM.Debug.Print("FlushPending: dropped %s after %d attempts (last err=%s)",
                         name, entry.attempts, tostring(result))
@@ -527,7 +527,7 @@ end
 
 -- ---------------------------------------------------------------------------
 -- InvalidateState — clear cached body/icon fingerprints so the next pipeline
--- run writes every macro from scratch. Used by `/kcm rewritemacros` when a
+-- run writes every macro from scratch. Used by `/cm rewritemacros` when a
 -- user needs to force-refresh icons without deleting the macros themselves
 -- (stored icon corrupted, action-bar framework cached the old texture, etc.).
 -- Also drops the combat-deferral queue since those entries reference stale

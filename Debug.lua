@@ -3,7 +3,7 @@
 local KCM = _G.KCM
 KCM.Debug = {}
 
-local PREFIX = "|cffff8800[KCM]|r "
+local PREFIX = "|cff00ffff[CM]|r "
 
 function KCM.Debug.IsOn()
     return KCM.db and KCM.db.profile and KCM.db.profile.debug == true
