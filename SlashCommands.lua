@@ -1225,6 +1225,17 @@ function KCM.SlashCommands.PrintHelp()
     printHelp()
 end
 
+-- Read-only view of the COMMANDS table for the About panel. Each row is
+-- {name, summary} — same data the in-chat help table uses, so the panel and
+-- /cm help stay in lock-step automatically.
+function KCM.SlashCommands.GetCommandSummary()
+    local out = {}
+    for i, entry in ipairs(COMMANDS) do
+        out[i] = { name = entry[1], desc = entry[2] }
+    end
+    return out
+end
+
 function KCM:OnSlashCommand(msg)
     msg = trim(msg)
     if msg == "" then return printHelp() end

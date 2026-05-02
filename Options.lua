@@ -1294,6 +1294,146 @@ function O.RequestRefresh()
     end)
 end
 
+-- About panel: custom canvas frame used as the parent category's content,
+-- so clicking "Ka0s Consumable Master" in the AddOns sidebar lands on a
+-- branded landing page (logo + tagline + slash help) instead of an empty
+-- vertical-layout shell. Sub-pages (General, Stat Priority, per-category)
+-- are registered as canvas subcategories of this parent, same as before.
+--
+-- Layout: a UIPanelScrollFrameTemplate hosts a child Frame holding everything
+-- stacked top-down. We compute total content height in reflow() so the
+-- template's auto-managed scrollbar enables/disables correctly when the user
+-- resizes the Settings window.
+-- Extension-explicit on purpose: the filename has two dots, and WoW's
+-- extension auto-search treats the trailing token as the format hint, so
+-- omitting `.tga` lets it look for `…consumemaster.blp` first and then give
+-- up. Spelling out the extension dodges that.
+local LOGO_TEXTURE = [[Interface\AddOns\ConsumableMaster\media\screenshots\consumemaster.logo.tga]]
+-- Logo is rendered at its native 300×300 size — fixed, no responsive scaling.
+-- Narrow viewports will clip on the right; the vertical scrollbar handles the
+-- height overflow regardless.
+local LOGO_PIXELS = 300
+local PANEL_PAD   = 16
+
+local function readAddOnNotes()
+    if C_AddOns and C_AddOns.GetAddOnMetadata then
+        return C_AddOns.GetAddOnMetadata("ConsumableMaster", "Notes") or ""
+    end
+    if GetAddOnMetadata then
+        return GetAddOnMetadata("ConsumableMaster", "Notes") or ""
+    end
+    return ""
+end
+
+local function buildAboutPanel()
+    local frame = CreateFrame("Frame")
+    frame:Hide()
+
+    -- ScrollFrame fills the canvas; right margin reserves room for the
+    -- template's built-in scrollbar so content doesn't clip behind it.
+    local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 0, 0)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 0)
+
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(1, 1)  -- placeholder; reflow() resizes to fit children
+    scroll:SetScrollChild(content)
+
+    local title = content:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+    title:SetPoint("TOPLEFT", PANEL_PAD, -PANEL_PAD)
+    title:SetJustifyH("LEFT")
+    title:SetTextColor(1, 0.82, 0)
+    title:SetText(PANEL_TITLE)
+
+    local sep1 = content:CreateTexture(nil, "ARTWORK")
+    sep1:SetColorTexture(0.4, 0.4, 0.4, 0.6)
+    sep1:SetHeight(1)
+    sep1:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
+    sep1:SetPoint("RIGHT", content, "RIGHT", -PANEL_PAD, 0)
+
+    local logo = content:CreateTexture(nil, "ARTWORK")
+    logo:SetTexture(LOGO_TEXTURE)
+    logo:SetPoint("TOPLEFT", sep1, "BOTTOMLEFT", 0, -16)
+    logo:SetSize(LOGO_PIXELS, LOGO_PIXELS)
+
+    local notes = content:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    notes:SetPoint("TOPLEFT", logo, "BOTTOMLEFT", 0, -16)
+    notes:SetJustifyH("LEFT")
+    notes:SetWordWrap(true)
+
+    local sep2 = content:CreateTexture(nil, "ARTWORK")
+    sep2:SetColorTexture(0.4, 0.4, 0.4, 0.6)
+    sep2:SetHeight(1)
+    sep2:SetPoint("TOPLEFT", notes, "BOTTOMLEFT", 0, -16)
+    sep2:SetPoint("RIGHT", content, "RIGHT", -PANEL_PAD, 0)
+
+    local slashHeader = content:CreateFontString(nil, "ARTWORK", "GameFontNormalHuge")
+    slashHeader:SetPoint("TOPLEFT", sep2, "BOTTOMLEFT", 0, -12)
+    slashHeader:SetJustifyH("LEFT")
+    slashHeader:SetTextColor(1, 0.82, 0)
+    slashHeader:SetText("Slash Commands")
+
+    local slashBody = content:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    slashBody:SetPoint("TOPLEFT", slashHeader, "BOTTOMLEFT", 0, -10)
+    slashBody:SetJustifyH("LEFT")
+    slashBody:SetJustifyV("TOP")
+    slashBody:SetSpacing(3)
+
+    local function refreshSlashBody()
+        local rows = (KCM.SlashCommands and KCM.SlashCommands.GetCommandSummary)
+            and KCM.SlashCommands.GetCommandSummary() or {}
+        local lines = {}
+        for _, row in ipairs(rows) do
+            lines[#lines + 1] = ("  |cffffff00/cm %s|r  %s"):format(row.name, row.desc)
+        end
+        slashBody:SetText(table.concat(lines, "\n"))
+    end
+
+    -- Reflow on Settings panel resize: text widths track the viewport so long
+    -- lines wrap, and the content frame's height is summed from the laid-out
+    -- elements so UIPanelScrollFrameTemplate enables/disables its scrollbar
+    -- and computes scroll range correctly. Logo size is fixed (LOGO_PIXELS)
+    -- and not part of the recomputation.
+    local function reflow(viewportW)
+        local w = viewportW or scroll:GetWidth() or 0
+        if w < 64 then return end
+        local available = w - (PANEL_PAD * 2)
+        if available < 0 then available = 0 end
+
+        notes:SetWidth(available)
+        slashBody:SetWidth(available)
+        content:SetWidth(w)
+
+        -- Sum of: top pad, title, sep1 + gaps, logo + gaps, notes + gaps,
+        -- sep2 + gaps, slash header + gaps, slash body, bottom pad. Mirrors
+        -- the SetPoint offsets above; if those change, mirror them here.
+        local h = PANEL_PAD
+            + (title:GetStringHeight() or 0)
+            + 10 + 1
+            + 16 + LOGO_PIXELS
+            + 16 + (notes:GetStringHeight() or 0)
+            + 16 + 1
+            + 12 + (slashHeader:GetStringHeight() or 0)
+            + 10 + (slashBody:GetStringHeight() or 0)
+            + PANEL_PAD
+        content:SetHeight(h)
+    end
+
+    scroll:SetScript("OnSizeChanged", function(_self, w, _h) reflow(w) end)
+
+    -- OnShow runs *after* Settings parents and anchors the frame to the
+    -- canvas, so GetWidth() is valid even if OnSizeChanged hasn't fired yet
+    -- (first open, no resize event). Refresh derived content too: the slash
+    -- table can grow at runtime if a future module adds a verb.
+    frame:SetScript("OnShow", function()
+        notes:SetText(readAddOnNotes())
+        refreshSlashBody()
+        reflow(scroll:GetWidth())
+    end)
+
+    return frame
+end
+
 -- Restyle the BlizOptionsGroup label that AceConfigDialog stamps on top of
 -- every sub-page. Stock font is GameFontNormalLarge (~14pt); we bump to 24pt
 -- gold so each sub-page header sits as the dominant heading and the canvas
@@ -1322,7 +1462,7 @@ function O.Register()
         end
         return false
     end
-    if not (Settings and Settings.RegisterVerticalLayoutCategory
+    if not (Settings and Settings.RegisterCanvasLayoutCategory
             and Settings.RegisterAddOnCategory) then
         if KCM.Debug and KCM.Debug.Print then
             KCM.Debug.Print("Options.Register: Settings API unavailable; skipping.")
@@ -1332,12 +1472,14 @@ function O.Register()
 
     AceConfig:RegisterOptionsTable(REGISTRY_KEY, O.Build)
 
-    -- Vertical-layout parent: shows up as "Ka0s Consumable Master" in the
-    -- AddOns sidebar and expands to one canvas-layout subcategory per
-    -- top-level options-table group (General, Stat Priority, then each
-    -- Categories.LIST entry). Each subcategory owns the full canvas — there
-    -- is no internal AceConfigDialog tree to share width with.
-    local parent = Settings.RegisterVerticalLayoutCategory(PANEL_TITLE)
+    -- Canvas-layout parent: the parent category owns its own frame (the About
+    -- panel — logo + tagline + slash help) so clicking "Ka0s Consumable
+    -- Master" in the AddOns sidebar shows a branded landing page instead of
+    -- an empty shell. AceConfigDialog:AddToBlizOptions(..., parentID, ...)
+    -- registers each settings page as a canvas subcategory underneath, same
+    -- as before — only the parent's content changes.
+    O._aboutFrame = O._aboutFrame or buildAboutPanel()
+    local parent = Settings.RegisterCanvasLayoutCategory(O._aboutFrame, PANEL_TITLE)
     Settings.RegisterAddOnCategory(parent)
     local parentID = parent:GetID()
 
@@ -1352,10 +1494,11 @@ function O.Register()
         return frame, categoryID
     end
 
-    -- /cm config (and KCM.Options.Open) lands on General rather than the
-    -- parent; opening the bare parent shows an empty pane until Blizzard
-    -- auto-selects a sub, which is jarring. Capture General's category ID
-    -- as the canonical entry point.
+    -- /cm config (and KCM.Options.Open) lands on General — the parent canvas
+    -- is the About/landing page (logo + slash help), so dropping a user
+    -- straight onto it when they ran a command intended to configure things
+    -- would be a useless detour. Click the addon name in the sidebar to
+    -- reach the About page.
     local _, generalID = addSub("General", "general")
     KCM._settingsCategoryID = generalID or parentID
     addSub("Stat Priority", "statpriority")
