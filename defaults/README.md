@@ -95,11 +95,13 @@ Replace the `ids = { ... }` list with whatever IDs you need to label. If a line 
 
 6. **Update the seed files.** One file per category; see `Defaults_HPPot.lua` for the template. Keep the header comment's `Source:` and `Last refresh:` lines accurate.
 
-7. **Smoke-test in game.** For each updated category run:
+7. **Verify in game.** For each updated category run:
    ```
    /cm dump pick <catKey>
    ```
    The `pick` dump prints the effective priority list with per-entry Ranker scores AND the owned-item walk result, so you can confirm the seed ordering and the actual pick in one shot. `<catKey>` is the lower- or upper-case category key (e.g. `flask`, `HP_POT`, `hp_aio`).
+
+   For full coverage after a seed refresh — especially if the refresh introduced a new subType or tooltip phrasing — also run the [auto-discovery section](../docs/smoke-tests.md#2-auto-discovery) and the [quick smoke](../docs/smoke-tests.md#quick-smoke) from the smoke-test playbook.
 
 ## Common pitfalls
 

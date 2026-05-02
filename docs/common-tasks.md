@@ -55,7 +55,7 @@ See [data-model.md](./data-model.md#composite-bucket-shape) for the composite bu
 
 ## Refresh seed item IDs after a patch
 
-The full procedure (sources, in-game `/run` snippet for batch ID dump, common pitfalls) lives in [defaults/README.md](../defaults/README.md). High-level summary: collect candidate IDs (in-game vendors first, then Method.gg / wiki cross-check), verify each in-game with `/cm dump item <id>`, update the relevant `defaults/Defaults_*.lua` file, smoke-test with `/cm dump pick <catKey>`.
+The full procedure (sources, in-game `/run` snippet for batch ID dump, common pitfalls) lives in [defaults/README.md](../defaults/README.md). High-level summary: collect candidate IDs (in-game vendors first, then Method.gg / wiki cross-check), verify each in-game with `/cm dump item <id>`, update the relevant `defaults/Defaults_*.lua` file, then run the [auto-discovery section](./smoke-tests.md#2-auto-discovery) of the smoke suite.
 
 Updating a defaults file is a zero-migration upgrade for existing users — the candidate set is `(seed ∪ added ∪ discovered) − blocked` at runtime, and the right-side sets live in SavedVariables independent of the seed.
 
@@ -76,11 +76,6 @@ For the Midnight-specific gotcha catalog see [midnight-quirks.md](./midnight-qui
 
 ## Verify a behavior change in-game
 
-There are no automated tests. Validation is manual:
-
-1. `/cm resync` to rebuild after editing.
-2. `/cm dump pick <affected catKey>` to inspect the priority list with per-entry scores and the owned-item pick.
-3. Open the macro UI and verify the body of the relevant `KCM_*` macro.
-4. For UI changes: open the Options panel and exercise the affected page.
+There are no automated tests; validation is manual. Use the [Quick smoke](./smoke-tests.md#quick-smoke) recipe in [smoke-tests.md](./smoke-tests.md) for the post-change minimum, and the [targeted-by-change-area lookup](./smoke-tests.md#targeted-by-change-area) at the bottom of that file for which sections of the full suite map to your change.
 
 If you can only reason about the change from code and cannot test it in WoW, say so explicitly — don't claim it works.

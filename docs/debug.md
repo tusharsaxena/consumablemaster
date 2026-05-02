@@ -81,11 +81,6 @@ All three namespaces dispatch through `findCommand` against an ordered `*_COMMAN
 
 `Core.lua` has a commented-out per-category recompute log (search for "Pipeline.RecomputeOne" near `KCM.Debug.Print`). It fires `N × M` times during login (N categories × M `GET_ITEM_INFO_RECEIVED` events) and floods chat. Uncomment only for short debugging sessions, then re-comment.
 
-## Smoke test recipe
+## Smoke testing
 
-When changing a scorer, classifier, or tooltip pattern:
-
-1. `/cm resync`
-2. `/cm dump pick <affected catKey>` — inspect scores (order + why) and the winner.
-3. Open the macro UI and check the body of the relevant `KCM_*` macro.
-4. For UI changes: open the Options panel page for the affected category.
+The full validation playbook lives in [smoke-tests.md](./smoke-tests.md): a [Quick smoke](./smoke-tests.md#quick-smoke) recipe for post-change validation, a [12-section full suite](./smoke-tests.md#full-suite) for releases, and a [targeted-by-change-area lookup](./smoke-tests.md#targeted-by-change-area) at the bottom that maps "I changed X" to "run sections Y, Z".

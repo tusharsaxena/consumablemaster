@@ -155,6 +155,8 @@ Hovering the **blue info button** on any row shows the per-item score breakdown,
 
 All bugs, feature requests, and outstanding work are tracked at [https://github.com/tusharsaxena/consumablemaster/issues](https://github.com/tusharsaxena/consumablemaster/issues). Please file new reports there rather than as comments — the issue tracker is the single source of truth for the project's backlog.
 
+If you're contributing or validating a build, the manual smoke-test playbook lives at [docs/smoke-tests.md](./docs/smoke-tests.md).
+
 ## Version History
 
 | Version | Changes |

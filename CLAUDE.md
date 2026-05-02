@@ -38,7 +38,7 @@ local F = KCM.Foo
 - **Dual-path WSL.** `/home/tushar/GIT/ConsumableMaster/` and `/mnt/d/Profile/Users/Tushar/Documents/GIT/ConsumableMaster/` are the same repo via symlink. Either path works for git and file tools.
 - **Git remote.** No remote yet; only local commits on `master`.
 - **`.gitignore`** covers `.claude/settings.local.json`, OS cruft, editor scratch files. `libs/` is tracked (vendored Ace3, standard WoW addon practice). `defaults/`, `docs/`, all `.lua` source are tracked.
-- **No automated tests.** Validation is manual, in-game. See [docs/common-tasks.md](./docs/common-tasks.md) for the smoke-test recipe.
+- **No automated tests.** Validation is manual, in-game. See [docs/smoke-tests.md](./docs/smoke-tests.md) for the post-change quick smoke + the full 12-section suite.
 
 ## Response style for this repo
 
@@ -66,4 +66,5 @@ Topic-specific detail lives in `docs/`. Read on demand — these are not auto-lo
 | Recompute pipeline + score cache + events | [docs/pipeline.md](./docs/pipeline.md) | Touching event handling, performance. |
 | AceDB schema + opaque IDs + composites + GC | [docs/data-model.md](./docs/data-model.md) | Adding a category, persistent state changes. |
 | MacroManager — body builders, composite assembly, flush retry, icons | [docs/macro-manager.md](./docs/macro-manager.md) | Anything touching macro writes. |
+| Smoke tests (quick + full suite + targeted-by-change-area lookup) | [docs/smoke-tests.md](./docs/smoke-tests.md) | After any code change; before any release. |
 | Seed reference + refresh procedure | [defaults/README.md](./defaults/README.md) | Patch-day seed updates. |

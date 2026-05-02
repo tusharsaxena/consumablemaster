@@ -30,6 +30,7 @@ WoW events ─▶ Core.Pipeline ─▶ Selector ─▶ Ranker     ─▶ candida
 | Settings panel + slash CLI + schema layer | `settings/Panel.lua`, `settings/{General,StatPriority,Category}.lua`, `SlashCommands.lua` | [docs/debug.md](./docs/debug.md), [docs/file-index.md](./docs/file-index.md) |
 | Per-file responsibility map | — | [docs/file-index.md](./docs/file-index.md) |
 | Routine recipes (add category, refresh seeds, fix misclassification) | — | [docs/common-tasks.md](./docs/common-tasks.md) |
+| Smoke-test playbook (quick + full + targeted) | — | [docs/smoke-tests.md](./docs/smoke-tests.md) |
 | In/out scope + resolved design decisions | — | [docs/scope.md](./docs/scope.md) |
 
 ## Invariants worth not breaking
