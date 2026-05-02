@@ -96,8 +96,9 @@ local methods = {
         self:RefreshDisplay()
     end,
 
-    -- AceConfigDialog calls SetText/SetFontObject on every description-type
-    -- entry. Ignore both — widget builds its own label.
+    -- No-op stubs so the widget tolerates any AceGUI consumer that
+    -- pre-emptively calls SetText / SetFontObject on every child. The
+    -- widget builds its own label.
     ["SetText"]       = function(self, _) end,
     ["SetFontObject"] = function(self, _) end,
 

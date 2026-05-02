@@ -49,7 +49,7 @@ Composites compose other categories' picks via `[combat]` / `[nocombat]` macro c
    },
    ```
 3. **No** Classifier, Ranker, or `Defaults_*` file. **No** `added` / `blocked` / `pins` / `discovered` buckets — composites have no candidate set.
-4. The pipeline already branches on `cat.composite` in `Pipeline.RecomputeOne` and dispatches to `MacroManager.SetCompositeMacro`. The Options panel routes `cat.composite` rows to `buildCompositeArgs`. No code changes needed.
+4. The pipeline already branches on `cat.composite` in `Pipeline.RecomputeOne` and dispatches to `MacroManager.SetCompositeMacro`. The Options panel routes `cat.composite` rows to `renderComposite` in `settings/Category.lua`. No code changes needed.
 
 See [data-model.md](./data-model.md#composite-bucket-shape) for the composite bucket shape and [macro-manager.md](./macro-manager.md#composite-body-assembly) for the body-assembly detail.
 

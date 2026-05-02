@@ -22,12 +22,12 @@ WoW events ─▶ Core.Pipeline ─▶ Selector ─▶ Ranker     ─▶ candida
 
 | Subsystem | Lives in | Read |
 |-----------|----------|------|
-| Per-module APIs + roles | `Core.lua`, `Selector.lua`, `Ranker.lua`, `Classifier.lua`, `BagScanner.lua`, `TooltipCache.lua`, `SpecHelper.lua`, `Debug.lua`, `Options.lua`, `SlashCommands.lua` | [docs/module-map.md](./docs/module-map.md) |
+| Per-module APIs + roles | `Core.lua`, `Selector.lua`, `Ranker.lua`, `Classifier.lua`, `BagScanner.lua`, `TooltipCache.lua`, `SpecHelper.lua`, `Debug.lua`, `settings/*.lua`, `SlashCommands.lua` | [docs/module-map.md](./docs/module-map.md) |
 | Recompute pipeline + score cache + events | `Core.lua` (`KCM.Pipeline`) | [docs/pipeline.md](./docs/pipeline.md) |
 | AceDB schema + opaque IDs + discovered GC | `Core.lua` (`KCM.dbDefaults`, `KCM.ID`), `Selector.lua` | [docs/data-model.md](./docs/data-model.md) |
 | MacroManager (body builders, composite assembly, combat deferral, action-bar icons) | `MacroManager.lua` | [docs/macro-manager.md](./docs/macro-manager.md) |
 | Tooltip parsing + Midnight gotchas | `Classifier.lua`, `TooltipCache.lua` | [docs/midnight-quirks.md](./docs/midnight-quirks.md) |
-| Settings panel + slash CLI + schema layer | `Options.lua`, `SlashCommands.lua` | [docs/debug.md](./docs/debug.md), [docs/file-index.md](./docs/file-index.md) |
+| Settings panel + slash CLI + schema layer | `settings/Panel.lua`, `settings/{General,StatPriority,Category}.lua`, `SlashCommands.lua` | [docs/debug.md](./docs/debug.md), [docs/file-index.md](./docs/file-index.md) |
 | Per-file responsibility map | — | [docs/file-index.md](./docs/file-index.md) |
 | Routine recipes (add category, refresh seeds, fix misclassification) | — | [docs/common-tasks.md](./docs/common-tasks.md) |
 | In/out scope + resolved design decisions | — | [docs/scope.md](./docs/scope.md) |
@@ -69,8 +69,8 @@ All vendored under `libs/`:
 3. `Debug.lua`
 4. `defaults/Categories.lua` then `defaults/Defaults_*.lua`
 5. `SpecHelper` → `TooltipCache` → `BagScanner` → `Classifier` → `Ranker` → `Selector` → `MacroManager`
-6. AceGUI widgets: `KCMIconButton` → `KCMScoreButton` → `KCMHeading` → `KCMMacroDragIcon` → `KCMItemRow`
-7. `Options.lua`
+6. AceGUI widgets: `KCMIconButton` → `KCMScoreButton` → `KCMMacroDragIcon` → `KCMItemRow`
+7. Settings framework: `settings/Panel.lua` (must come first — registers `KCM.Settings.Helpers` + `RegisterTab`) → `settings/General.lua` → `settings/StatPriority.lua` → `settings/Category.lua`
 8. `SlashCommands.lua`
 
 Event handlers and `Pipeline` functions are *defined* at the top of `Core.lua` but only *called* from `OnEnable` / Ace event dispatch, which runs after every file has loaded — so the bodies can freely reference modules that load later.

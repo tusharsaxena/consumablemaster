@@ -13,21 +13,30 @@ Where each responsibility lives in the source tree. Match this map to the actual
 | `BagScanner.lua` | `Scan() -> {[itemID] = count}` (one pass over `C_Container`). `HasItem(itemID) -> ownsBool, count` via a single `C_Item.GetItemCount` call (no full-Scan fallback). Stateless. |
 | `Classifier.lua` | `(itemID) → categories`. `Match(catKey, id, tt, subType)` and `MatchAny(id) -> { catKeys }`. English-only subType + tooltip-pattern matching. `ST_*` constants at the top of the file absorb Midnight subType renames. |
 | `Ranker.lua` | Per-category scorers. `Score(catKey, id, ctx, scoreCache) / SortCandidates(catKey, ids, ctx, scoreCache) / BuildContext(catKey, itemIDs, existing, scoreCache) / Explain(catKey, id, ctx)`. Spell entries short-circuit to a fixed score above every item. HP_POT / MP_POT apply the immediate-vs-HOT 20% rule. Spec-aware scorers weight by `ctx.specPriority`. |
-| `Selector.lua` | Candidate set + pin merge + ownership walk. Public surface: `BuildCandidateSet / GetEffectivePriority / PickBestForCategory` (read), `AddItem / Block / Unblock / MoveUp / MoveDown / ClearPins / MarkDiscovered / SweepStaleDiscovered` (write). Owns the `(seed ∪ added ∪ discovered) − blocked` math and the 30-day discovered GC. |
+| `Selector.lua` | Candidate set + pin merge + ownership walk. Public surface: `BuildCandidateSet / GetEffectivePriority / PickBestForCategory / GetBucket` (read), `AddItem / Block / MoveUp / MoveDown / MarkDiscovered / SweepStaleDiscovered` (write). Owns the `(seed ∪ added ∪ discovered) − blocked` math and the 30-day discovered GC. |
 | `MacroManager.lua` | The **only** module that calls `CreateMacro` / `EditMacro`. `SetMacro(macroName, id, catKey)` for single picks; `SetCompositeMacro(cat, scoreCache)` for HP_AIO / MP_AIO. Combat-deferral queue (`pendingUpdates`), bounded retry on flush, DYNAMIC_ICON / DEFAULT_ICON convention, 255-byte body limit fallback. `InvalidateState()` clears caches for `/cm rewritemacros`. See [macro-manager.md](./macro-manager.md). |
-| `Options.lua` | AceConfig panel + `Settings.Schema` + `Helpers`. Registers `Settings.RegisterVerticalLayoutCategory` parent + one `AceConfigDialog:AddToBlizOptions` sub-page per top-level group (General, Stat Priority, then each `Categories.LIST` entry). `O.Refresh()` (immediate) and `O.RequestRefresh()` (debounced). `Helpers.Get / Set / SetAndRefresh / RestoreDefaults / ValidateSchema` drive both panel widgets and `/cm list/get/set`. |
 | `SlashCommands.lua` | `/cm` (and `/consumablemaster` alias) dispatcher. Three ordered tables: `COMMANDS` (top-level verbs), `DUMP_TARGETS` (`/cm dump <target>`), and `PRIORITY_COMMANDS` / `STAT_COMMANDS` / `AIO_COMMANDS` (verb namespaces). The `say()` helper prepends the cyan `[CM]` prefix to every chat line. Owns the `KCM_CONFIRM_RESET` StaticPopup. |
+
+## settings/
+
+Each tab module registers a builder via `KCM.Settings.RegisterTab(key, builder)`; `settings/Panel.lua`'s bootstrap iterates `KCM.Settings.order` and calls each builder once Blizzard_Settings is ready. Bodies are hand-built AceGUI widget trees inside a `Helpers.CreatePanel` canvas — no AceConfigDialog.
+
+| File | Responsibility |
+|------|----------------|
+| `settings/Panel.lua` | Framework. `Helpers.CreatePanel` (gold title + atlas divider + body), lazy AceGUI ScrollFrame with always-visible scrollbar gutter (`PatchAlwaysShowScrollbar`), `Section` / `Button` / `ButtonPair` / `Label` / `RenderField` builders. Owns the `KCM.Settings.Schema` array, `Helpers.Get / Set / SetAndRefresh / SchemaForPanel / FindSchema / ValidateSchema / RefreshAllPanels`. Hosts the parent (About) canvas via `BuildAboutContent`. Publishes the `KCM.Options.{Register,Refresh,RequestRefresh,Open}` shim that Core / Debug / SlashCommands / Pipeline call. |
+| `settings/General.lua` | General tab: Diagnostics (Debug toggle — schema-driven) + Maintenance (Force resync \| Force rewrite paired) + Reset (Reset all priorities, StaticPopup-confirmed via `KCM_RESET_ALL`). |
+| `settings/StatPriority.lua` | Stat Priority tab: full-width spec dropdown (class+spec icon markup), Primary alone in a half-row, Secondary 1\|2 + 3\|4 paired half-rows, inline Reset. Owns `KCM.Options._viewedSpec` + `O.ResolveViewedSpec` + `O.FormatSpec`. |
+| `settings/Category.lua` | Per-category tabs (single + composite). One builder per row in `KCM.Categories.LIST`. Single dispatch: drag icon → Add-by-ID (Type \| ID input) → Priority list rows (KCMItemRow + KCMScoreButton + ↑/↓/× buttons) → inline Reset. Composite dispatch: drag icon → In Combat / Out of Combat sections (each row: KCMItemRow + Enabled checkbox + ↑/↓) → inline Reset. Shared `KCM_RESET_CATEGORY` StaticPopup. |
 
 ## AceGUI custom widgets
 
-Loaded between `MacroManager` and `Options` so `Options.lua` can reference them by `dialogControl` name at table-build time.
+Loaded between `MacroManager` and `settings/`. Each file calls `AceGUI:RegisterWidgetType` at the bottom; the tab builders acquire instances via `AceGUI:Create("KCM…")` at render time.
 
 | File | Purpose |
 |------|---------|
 | `KCMItemRow.lua` | Priority-list row: status glyphs (green check / red / yellow star) + item icon + name + quality tier. Hover renders the real in-game item or spell tooltip (forks on `KCM.ID.IsSpell`). |
-| `KCMIconButton.lua` | Gold-hover icon button used for ↑ / ↓ / × and the Add-by-ID submit. |
-| `KCMScoreButton.lua` | The blue "i" info button. Hover renders the per-item `Ranker.Explain` breakdown. Swallows `SetLabel` so the option's `name` becomes the tooltip title without rendering a text label under the icon. |
-| `KCMHeading.lua` | Section heading styled like Blizzard's. |
+| `KCMIconButton.lua` | Gold-hover icon button used for ↑ / ↓ / ×. |
+| `KCMScoreButton.lua` | The blue "i" info button. Hover renders the per-item `Ranker.Explain` breakdown. No-op `SetLabel` so the caller can pass an arbitrary tooltip-title string without rendering a text label under the icon. |
 | `KCMMacroDragIcon.lua` | Pickable macro icon at the top of each category page. Resolves to `GetItemIcon(lastItemID)` / `C_Spell.GetSpellTexture(spellID)` directly (the `?` sentinel is meaningless on a static UI widget). |
 
 ## defaults/

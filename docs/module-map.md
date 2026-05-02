@@ -54,19 +54,27 @@ MacroManager.lua  The ONLY module that calls CreateMacro / EditMacro.
                    bounded flush retry, action-bar icon convention.
                    Detail in macro-manager.md.
 
-Options.lua ───── AceConfig option table built from KCM.Categories.LIST.
-                   Settings.RegisterVerticalLayoutCategory parent + one
-                   AceConfigDialog:AddToBlizOptions sub-page per top-level
-                   group. Settings.Schema + Helpers drive both panel widgets
-                   and /cm list / get / set.
+settings/         Settings UI framework + per-tab modules.
+├── Panel.lua            Helpers.CreatePanel (gold title + atlas divider),
+│                        always-visible scrollbar gutter, Section / Button /
+│                        ButtonPair / Label / RenderField builders. Owns
+│                        Settings.Schema + Helpers; publishes the KCM.Options
+│                        shim. About content is rendered here on the parent
+│                        canvas.
+├── General.lua          Diagnostics / Maintenance / Reset sections.
+├── StatPriority.lua     Spec selector + paired Primary / Secondary 1-4.
+└── Category.lua         One tab per Categories.LIST entry; dispatches to
+                          single (Add-by-ID + Priority list) or composite
+                          (In Combat / Out of Combat) rendering.
 
 SlashCommands.lua /cm (and /consumablemaster alias) dispatcher. Three
                    ordered tables: COMMANDS, DUMP_TARGETS, and the
                    *_COMMANDS verb namespaces. say() helper prepends the
                    cyan [CM] prefix. Detail in debug.md.
 
-KCM*.lua         AceGUI custom widgets registered via dialogControl =
-                  "KCM<Name>" from Options. Detail in file-index.md.
+KCM*.lua         AceGUI custom widgets. Loaded before settings/ so that
+                  AceGUI:Create("KCM…") works at panel render time.
+                  Detail in file-index.md.
 ```
 
 ## Public APIs
@@ -111,15 +119,13 @@ KCM.Selector.PickBestForCategory(catKey, specKey?, scoreCache?)  -> id | nil
 -- Write (mutators)
 KCM.Selector.AddItem(catKey, id, specKey?)             -> changed:bool   -- accepts items + spells
 KCM.Selector.Block(catKey, id, specKey?)               -> changed:bool
-KCM.Selector.Unblock(catKey, id, specKey?)             -> changed:bool
 KCM.Selector.MoveUp(catKey, id, specKey?)              -> changed:bool
 KCM.Selector.MoveDown(catKey, id, specKey?)            -> changed:bool
-KCM.Selector.ClearPins(catKey, specKey?)               -> changed:bool
 KCM.Selector.MarkDiscovered(catKey, id, specKey?, nowUnix) -> changed:bool   -- items only
 KCM.Selector.SweepStaleDiscovered(nowUnix) -> droppedCount  -- 30-day TTL, PEW-only
 ```
 
-`AddItem` also unblocks: if the id is in `blocked`, it's removed from there *and* added to `added`, so `changed = true` even when `added[id]` was already set.
+`AddItem` also unblocks: if the id is in `blocked`, it's removed from there *and* added to `added`, so `changed = true` even when `added[id]` was already set. There is no `Unblock` verb — Block + AddItem cover the two transitions users actually take.
 
 ### Ranker (`Ranker.lua`)
 
@@ -179,19 +185,21 @@ KCM.SpecHelper.GetStatPriority(specKey) -> { primary, secondary = { ... } }
 
 `GetStatPriority` merges in this order: user override (`db.profile.statPriority[specKey]`) → seed default (`KCM.SEED.STAT_PRIORITY[specKey]`) → class-primary fallback. There is no setter — user-override writes go directly through `db.profile.statPriority[specKey] = { primary, secondary }` (Options panel via the local `writeStatPriority` helper, slash CLI via `/cm stat primary` / `/cm stat secondary`).
 
-### Options (`Options.lua`)
+### Settings panel (`settings/Panel.lua` + per-tab modules)
 
 ```lua
--- Lifecycle
+-- Lifecycle (preserved API; called by Core / Debug / SlashCommands / Pipeline)
 KCM.Options.Register()       -- one-time, called from Core:OnInitialize
 KCM.Options.Open()           -- opens panel directly to General
 
 -- Refresh
-KCM.Options.Refresh()        -- immediate: invalidate cache + NotifyChange
+KCM.Options.Refresh()        -- immediate: re-render every shown panel
 KCM.Options.RequestRefresh() -- trailing-edge debounced (1.0s quiet, 3.0s max wait)
 
 -- Schema layer
 KCM.Settings.Schema          -- ordered list of {panel, section, group, path, type, label, default, onChange?}
+KCM.Settings.RegisterTab(key, builder)            -- per-tab module entry point
+KCM.Settings.order           -- { "general", "statpriority", "food", ..., "mp_aio" }
 KCM.Settings.Helpers.Resolve(path) -> parent, key
 KCM.Settings.Helpers.Get(path) -> value
 KCM.Settings.Helpers.Set(path, section, value) -> bool
@@ -199,11 +207,28 @@ KCM.Settings.Helpers.SchemaForPanel(panelKey) -> { rows }
 KCM.Settings.Helpers.FindSchema(path) -> row | nil
 KCM.Settings.Helpers.ValidateSchema() -> errorCount
 KCM.Settings.Helpers.SetAndRefresh(path, value) -> bool   -- write + onChange + refresh
-KCM.Settings.Helpers.RestoreDefaults(panelKey)
 KCM.Settings.Helpers.RefreshAllPanels()
+
+-- Panel-build helpers (called by per-tab modules)
+KCM.Settings.Helpers.CreatePanel(name, title, opts) -> ctx
+KCM.Settings.Helpers.SetRenderer(ctx, fn)
+KCM.Settings.Helpers.ResetScroll(ctx)
+KCM.Settings.Helpers.EnsureScroll(ctx) -> AceGUI ScrollFrame
+KCM.Settings.Helpers.PatchAlwaysShowScrollbar(scrollWidget)
+KCM.Settings.Helpers.Section(ctx, label)
+KCM.Settings.Helpers.RenderField(ctx, def, parent?, relativeWidth?)
+KCM.Settings.Helpers.Button(ctx, spec)
+KCM.Settings.Helpers.ButtonPair(ctx, leftSpec, rightSpec)
+KCM.Settings.Helpers.Label(ctx, text, fontSize?)
+KCM.Settings.Helpers.AddSpacer(scroll, height)
+KCM.Settings.Helpers.AttachTooltip(widget, label, tooltip)
+KCM.Settings.Helpers.MakeCheckbox(ctx, def, parent?, relativeWidth?)
+KCM.Settings.Helpers.BuildAboutContent(ctx)             -- parent canvas content
 ```
 
 `RequestRefresh` is the panel-side equivalent of pipeline coalescing — it collapses a burst of `GET_ITEM_INFO_RECEIVED`-driven `Pipeline.Recompute` runs into one panel rebuild. User-driven mutations (add / remove / move buttons) call `Refresh` directly via `afterMutation` for snappy click response. Detail in [pipeline.md GIIR split](./pipeline.md#giir-bagnon-bag-split).
+
+`RefreshAllPanels` iterates every previously-shown panel ctx and re-runs its `_renderFn`. Renderers call `ResetScroll(ctx)` before re-adding children so a re-render after a mutation starts on a clean slate.
 
 ### Debug (`Debug.lua`)
 
@@ -238,10 +263,10 @@ local F = KCM.Foo
 3. `Debug.lua`.
 4. `defaults/Categories.lua` then each `defaults/Defaults_*.lua`.
 5. Runtime modules: `SpecHelper` → `TooltipCache` → `BagScanner` → `Classifier` → `Ranker` → `Selector` → `MacroManager`.
-6. AceGUI widgets: `KCMIconButton` → `KCMScoreButton` → `KCMHeading` → `KCMMacroDragIcon` → `KCMItemRow`.
-7. `Options.lua`.
+6. AceGUI widgets: `KCMIconButton` → `KCMScoreButton` → `KCMMacroDragIcon` → `KCMItemRow`.
+7. Settings framework: `settings/Panel.lua` → `settings/General.lua` → `settings/StatPriority.lua` → `settings/Category.lua`.
 8. `SlashCommands.lua`.
 
-Widgets load before `Options.lua` because `Options.lua` references their `dialogControl` names at table-build time. Event handlers and `Pipeline` functions are *defined* in `Core.lua` at the top of the file but only *called* from `OnEnable` / Ace event dispatch, which runs after every file has loaded — so the bodies can freely reference modules that load later.
+`settings/Panel.lua` must come first within `settings/` because it creates `KCM.Settings.Helpers` + `KCM.Settings.RegisterTab` which the per-tab modules call at file-bottom. Widgets load before `settings/` so `AceGUI:Create("KCM…")` works at panel-render time. Event handlers and `Pipeline` functions are *defined* in `Core.lua` at the top of the file but only *called* from `OnEnable` / Ace event dispatch, which runs after every file has loaded — so the bodies can freely reference modules that load later.
 
 If you add a new runtime file, put it in the right place in `ConsumableMaster.toc`.

@@ -42,7 +42,7 @@ Don't introduce raw `print(...)` calls. Three sanctioned chat paths:
 
 ## Schema-driven slash UX (KickCD parity)
 
-Scalar settings live as rows in `KCM.Settings.Schema` (declared in `Options.lua`). Each row drives both the AceConfig widget AND the slash CLI:
+Scalar settings live as rows in `KCM.Settings.Schema` (declared in `settings/Panel.lua`). Each row drives both the General-panel widget (rendered by `Helpers.RenderField` in `settings/General.lua`) AND the slash CLI:
 
 | Slash | Effect |
 |-------|--------|

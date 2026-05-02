@@ -93,7 +93,7 @@ One shared page that drives the three spec-aware categories (Stat Food, Combat P
 Each of the eight single-category macros has its own page. Spec-aware pages show the viewed spec at the top.
 
 *   **Draggable macro icon** — the small icon below the title. Drag it onto an action bar to place the `KCM_*` macro.
-*   **Add item or spell by ID** — pick **Item** or **Spell**, paste the ID, confirm. The dialog shows the resolved name before committing.
+*   **Add item or spell by ID** — pick **Item** or **Spell**, paste the ID, press Enter. Invalid IDs are rejected with a chat error; the typed text persists so you can fix the typo without re-entering it.
 *   **Priority list** — one row per candidate, ordered by effective rank:
     *   Status glyphs: green check (owned in bags / spell known), red (not owned), yellow star (currently picked by the macro).
     *   **Blue info button** — hover for the per-item score breakdown.
@@ -128,7 +128,7 @@ Hovering the **blue info button** on any row shows the per-item score breakdown,
 | Will this delete or overwrite my existing macros? | No. The `KCM_*` macros are identified by **name**, never by slot, and the addon only ever touches macros it owns. Your custom macros — including anything already in the account-wide pool — are never read, moved, or deleted. If you delete a `KCM_*` macro by hand, the next pipeline run recreates it. |
 | Do the macros work across all my characters? | Yes — they're written to the **account-wide** macro pool (slots 1–120). One set of macros is shared across every character on the account. Priority lists, added/blocked entries, and stat-priority overrides also persist account-wide with a single profile by default. |
 | Why are some categories per-spec and others aren't? | Flask, Combat Potion, and Stat Food are **spec-aware** because their value depends on your stat priority. Food, Drink, HP Potion, MP Potion, and Healthstone rank the same regardless of spec, so they share one priority list. |
-| How do I add an item or spell the addon doesn't know about? | Open the category's page, use **Add item or spell by ID** at the top. Pick **Item** or **Spell**, paste the ID; a confirmation dialog shows the resolved name before it commits. |
+| How do I add an item or spell the addon doesn't know about? | Open the category's page, use **Add item or spell by ID** at the top. Pick **Item** or **Spell**, paste the ID, press Enter. Invalid IDs are rejected with a chat error and you keep your typed text so you can fix typos without re-entering. |
 | How do I force a specific item to always win? | Use the **↑ / ↓** buttons on its row to move it to the position you want. Pinned positions override the automatic ranking. |
 | How do I permanently remove an item? | Use the **×** button on its row. That blocks the item so auto-discovery won't re-add it. **Reset category** (or **Reset all priorities** in General) clears the blocklist again. |
 | Does it work with ElvUI / Bartender / other action-bar addons? | Yes — the `KCM_*` macros are plain Blizzard macros. If the picked item's icon doesn't show on the bar, see the Troubleshooting entry below; a one-time **Force rewrite macros** + `/reload` is occasionally needed on upgrade. |

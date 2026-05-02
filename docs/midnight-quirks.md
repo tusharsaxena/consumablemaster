@@ -57,15 +57,16 @@ The Options panel's `KCMMacroDragIcon` widget is exempt — it resolves to `GetI
 
 See [macro-manager.md](./macro-manager.md#action-bar-icon-convention) for the full convention.
 
-## AceConfigDialog `AddToBlizOptions` returns `(frame, categoryID)`
+## `Settings.OpenToCategory` wants the numeric category ID, not a frame
 
-On modern clients this returns two values: the frame object and the numeric category ID. `Settings.OpenToCategory` wants the **numeric ID**; passing the frame produces a range error. Always capture both return values:
+`Settings.RegisterCanvasLayoutSubcategory(parent, frame, name)` returns a category object whose `:GetID()` is the numeric ID `Settings.OpenToCategory` accepts. Passing the frame produces a range error. Capture the ID at registration time:
 
 ```lua
-local frame, categoryID = AceConfigDialog:AddToBlizOptions(REGISTRY_KEY, name, parentID, pathKey)
+local sub = Settings.RegisterCanvasLayoutSubcategory(parent, panel, "General")
+KCM._settingsCategoryID = sub:GetID()
 ```
 
-`/cm config` (in `SlashCommands.lua`) uses the captured General sub-page ID stored in `KCM._settingsCategoryID` to open directly to General instead of the empty parent shell.
+`/cm config` (in `SlashCommands.lua`) uses the General sub-page ID stored in `KCM._settingsCategoryID` to open directly to General instead of the parent About shell.
 
 ## `LEARNED_SPELL_IN_TAB` removed in retail
 

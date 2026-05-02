@@ -273,17 +273,6 @@ local function renumberPins(pins)
     for i, p in ipairs(pins) do p.position = i end
 end
 
--- Unblock an item (removes from blocked set). Returns true if state changed.
-function S.Unblock(catKey, itemID, specKey)
-    local bucket = S.GetBucket(catKey, specKey)
-    if not bucket or not itemID then return false end
-    if bucket.blocked[itemID] then
-        bucket.blocked[itemID] = nil
-        return true
-    end
-    return false
-end
-
 -- Add a user-supplied itemID (or spell sentinel via KCM.ID.AsSpell) to the
 -- candidate set. Also clears a blocklist entry if present so the add is
 -- always visible. Returns true if either the unblock or the add changed
@@ -434,13 +423,4 @@ end
 
 function S.MoveDown(catKey, itemID, specKey)
     return movePinned(catKey, itemID, 1, specKey)
-end
-
--- Clear all pins for a category (reverts to pure Ranker order).
-function S.ClearPins(catKey, specKey)
-    local bucket = S.GetBucket(catKey, specKey)
-    if not bucket then return false end
-    if #bucket.pins == 0 then return false end
-    bucket.pins = {}
-    return true
 end

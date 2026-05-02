@@ -24,7 +24,7 @@ These have been considered and explicitly declined. A change of heart needs an i
 - **Bandages.** First aid is a separate workflow; not relevant to current Midnight endgame.
 - **Profile import/export.** Settings live in `ConsumableMasterDB` per-account; no serialization layer.
 - **LDB / minimap icon.**
-- **Drag-and-drop reordering** of priority list rows. The ↑ / ↓ buttons are simpler with AceConfig.
+- **Drag-and-drop reordering** of priority list rows. The ↑ / ↓ buttons are simpler and match the rest of the panel's keyboard-and-mouse interaction model.
 - **Shopping-list / restock reminders.**
 - **Feasts** in `STAT_FOOD`. Personal feasts and ground feasts are excluded from the seed; users wanting a feast macro can add the item ID manually.
 - **Utility potions** in `CMBT_POT`. Invisibility, slow fall, swiftness, absorb potions are not throughput buffs and don't belong in the combat-pot macro.

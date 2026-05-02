@@ -281,10 +281,10 @@ local function Constructor()
         type       = Type,
     }
 
-    -- Direct frame script — we intentionally do NOT fire the AceGUI "OnEnter"
-    -- callback, because AceConfigDialog registers an OnEnter that shows the
-    -- option's `desc` tooltip. Hijacking the native script shows the real
-    -- item tooltip instead.
+    -- Direct frame script — bypasses the AceGUI "OnEnter" callback chain
+    -- so we can drive the real in-game item / spell tooltip ourselves
+    -- instead of whatever generic tooltip a callback consumer might
+    -- attach.
     frame:SetScript("OnEnter", function(self)
         if not widget.itemID then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")

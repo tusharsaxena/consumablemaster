@@ -568,16 +568,6 @@ function Helpers.SetAndRefresh(path, value)
     return true
 end
 
-function Helpers.RestoreDefaults(panelKey)
-    for _, def in ipairs(Helpers.SchemaForPanel(panelKey)) do
-        if def.default ~= nil then
-            Helpers.Set(def.path, def.section, def.default)
-            fireOnChange(def, def.default)
-        end
-    end
-    Helpers.RefreshAllPanels()
-end
-
 -- ---------------------------------------------------------------------
 -- Schema rows. Each row defines a scalar setting that the General panel
 -- renders as a widget AND that /cm list / get / set sees on the CLI.

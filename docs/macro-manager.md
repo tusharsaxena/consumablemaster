@@ -163,7 +163,7 @@ Bounded to **3 attempts** before giving up, with a one-time chat notice. Prevent
 |-----------|----------|
 | Macro pool full (120 account-wide already exist) | `CreateMacro` returns 0; `doEdit` returns `"error"` with `"account macro quota full (120)"`. Existing `KCM_*` macros continue. |
 | `EditMacro` returns 0 | `doEdit` returns `"error"`. `FlushPending` increments `attempts`; bounded retry (3) before give-up. |
-| User adds a non-existent ID | The Options panel `validate` callback rejects it; `Selector.AddItem` is never called with an invalid id. |
+| User adds a non-existent ID | The Add-by-ID `onSubmit` handler in `settings/Category.lua` rejects it (item: `C_Item.GetItemInfoInstant`; spell: `C_Spell.GetSpellName`); `Selector.AddItem` is never called with an invalid id. |
 | Item classifies into no category | Allowed — user knows best. Enters candidate set with score=0 from `Ranker`; sorted last. |
 | Spec-aware category without a current spec | `GetEffectivePriority` returns `{}`; `PickBestForCategory` returns nil; empty-state body written. No-op edge. |
 | Tooltip never loads | `TooltipCache.Get` returns the `pending=true` marker; Ranker scores 0 until `GET_ITEM_INFO_RECEIVED` fires the retry. |

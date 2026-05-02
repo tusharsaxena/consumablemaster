@@ -37,9 +37,9 @@ local methods = {
         self:SetDisabled(false)
     end,
 
-    -- No-op: AceConfigDialog always calls SetLabel(name). Swallowing the
-    -- call keeps the button icon-only so the tooltip title (driven by the
-    -- same `name` field) doesn't leak into the row layout as a text label.
+    -- No-op so the caller can pass an arbitrary string (used as the
+    -- tooltip-title via H.AttachTooltip) without the widget rendering
+    -- it as a text label under the icon.
     ["SetLabel"] = function(self, _) end,
 
     ["SetImage"] = function(self, path, ...)
