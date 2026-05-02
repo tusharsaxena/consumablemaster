@@ -168,7 +168,7 @@ Run `/cm dump item <id>` to see the subType + parsed tooltip. If subType is wron
 - Per-category scorers + `Ranker.Explain` / `Ranker.BuildContext`: `Ranker.lua`
 - Candidate set + effective priority + DB mutators: `Selector.lua`
 - The only protected-API caller (single picks via `SetMacro`, composite picks via `SetCompositeMacro`, both share the same combat-deferral queue): `MacroManager.lua`
-- Settings panel: `Options.lua`
+- Settings panel — registers a `Settings.RegisterVerticalLayoutCategory` parent ("Ka0s Consumable Master") and one `AceConfigDialog:AddToBlizOptions` sub-page per top-level options group (General, Stat Priority, then each `Categories.LIST` entry). Each sub-page is scoped via the path arg, so it owns the full canvas — no internal AceConfigDialog tree: `Options.lua`
 - `/cm` (and `/consumablemaster` alias) dispatcher + reset popup + `say()` helper that prepends the cyan `[CM]` prefix to every chat line: `SlashCommands.lua`
 - Debug helper: `Debug.lua`
 - AceGUI custom widgets (referenced from `Options.lua` via `dialogControl`):
@@ -176,5 +176,4 @@ Run `/cm dump item <id>` to see the subType + parsed tooltip. If subType is wron
   - Gold-hover icon button used for ↑ / ↓ / × and the add-by-ID row: `KCMIconButton.lua`
   - Info "i" button that shows a per-item score breakdown on hover: `KCMScoreButton.lua`
   - Section heading styled like Blizzard's: `KCMHeading.lua`
-  - Page title styled like Blizzard's: `KCMTitle.lua`
   - Draggable macro icon (places `KCM_*` macro on an action bar): `KCMMacroDragIcon.lua`

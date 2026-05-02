@@ -40,7 +40,6 @@ MacroManager.lua
 KCMIconButton.lua
 KCMScoreButton.lua
 KCMHeading.lua
-KCMTitle.lua
 KCMMacroDragIcon.lua
 KCMItemRow.lua
 Options.lua

@@ -228,19 +228,6 @@ end
 
 local function buildGeneralArgs()
     return {
-        title = {
-            type  = "description",
-            order = 0,
-            name  = "General",
-            dialogControl = "KCMTitle",
-        },
-        titleSpacer = {
-            type  = "description",
-            order = 0.5,
-            name  = " ",
-            fontSize = "medium",
-        },
-
         debug = {
             type  = "toggle",
             order = 1,
@@ -467,13 +454,6 @@ local function buildStatPriorityTabArgs()
     local specKey = resolveViewedSpec()
     local args = {}
 
-    args.title = {
-        type  = "description",
-        order = 1,
-        name  = "Stat Priority",
-        dialogControl = "KCMTitle",
-    }
-
     local values, sorting = specSelectorValues()
     args.specSelector = {
         type    = "select",
@@ -543,12 +523,6 @@ local function buildCompositeArgs(catKey)
 
     local args = {}
 
-    args.descHeader = {
-        type  = "description",
-        order = 1,
-        name  = cat.displayName,
-        dialogControl = "KCMTitle",
-    }
     args.descSubheader = {
         type  = "description",
         order = 2,
@@ -734,12 +708,6 @@ local function buildCategoryArgs(catKey)
 
     local args = {}
 
-    args.descHeader = {
-        type  = "description",
-        order = 1,
-        name  = cat.displayName,
-        dialogControl = "KCMTitle",
-    }
     if cat.specAware then
         args.descSubheader = {
             type  = "description",
@@ -1156,6 +1124,25 @@ function O.RequestRefresh()
     end)
 end
 
+-- Restyle the BlizOptionsGroup label that AceConfigDialog stamps on top of
+-- every sub-page. Stock font is GameFontNormalLarge (~14pt); we bump to 24pt
+-- gold so each sub-page header sits as the dominant heading and the canvas
+-- below has its content area reflowed to clear the taller label.
+local function styleBlizPanelLabel(frame)
+    local widget = frame and frame.obj
+    if not (widget and widget.label) then return end
+    widget.label:SetFont(STANDARD_TEXT_FONT, 24, "")
+    widget.label:SetTextColor(1, 0.82, 0)
+    widget.label:ClearAllPoints()
+    widget.label:SetPoint("TOPLEFT", 10, -12)
+    widget.label:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 10, -50)
+    if widget.content then
+        widget.content:ClearAllPoints()
+        widget.content:SetPoint("TOPLEFT", 10, -55)
+        widget.content:SetPoint("BOTTOMRIGHT", -10, 10)
+    end
+end
+
 function O.Register()
     local AceConfig       = LibStub and LibStub("AceConfig-3.0", true)
     local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
@@ -1165,32 +1152,46 @@ function O.Register()
         end
         return false
     end
-    AceConfig:RegisterOptionsTable(REGISTRY_KEY, O.Build)
-    -- On modern (10.x+) clients, AddToBlizOptions returns (frame, categoryID);
-    -- on legacy clients it returns just (frame). Settings.OpenToCategory
-    -- requires the numeric ID, so capture both forms and fall back to the
-    -- AceGUI container's `name` field (which the Settings registration sets
-    -- to the category ID) if the second return isn't provided.
-    local frame, categoryID = AceConfigDialog:AddToBlizOptions(REGISTRY_KEY, PANEL_TITLE)
-    KCM._settingsCategoryFrame = frame
-    KCM._settingsCategoryID    = categoryID or (frame and frame.name) or nil
+    if not (Settings and Settings.RegisterVerticalLayoutCategory
+            and Settings.RegisterAddOnCategory) then
+        if KCM.Debug and KCM.Debug.Print then
+            KCM.Debug.Print("Options.Register: Settings API unavailable; skipping.")
+        end
+        return false
+    end
 
-    -- BlizOptionsGroup renders the panel title ("Ka0s Consumable Master") in
-    -- GameFontNormalLarge (~14pt), which is smaller than our per-page KCMTitle
-    -- headers (22pt). Bump it to 24pt gold so the addon title is the dominant
-    -- top-level heading and clearly outranks the page headers below it. We
-    -- also push the content area down to make room for the taller label.
-    local widget = frame and frame.obj
-    if widget and widget.label then
-        widget.label:SetFont(STANDARD_TEXT_FONT, 24, "")
-        widget.label:SetTextColor(1, 0.82, 0)
-        widget.label:ClearAllPoints()
-        widget.label:SetPoint("TOPLEFT", 10, -12)
-        widget.label:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 10, -50)
-        if widget.content then
-            widget.content:ClearAllPoints()
-            widget.content:SetPoint("TOPLEFT", 10, -55)
-            widget.content:SetPoint("BOTTOMRIGHT", -10, 10)
+    AceConfig:RegisterOptionsTable(REGISTRY_KEY, O.Build)
+
+    -- Vertical-layout parent: shows up as "Ka0s Consumable Master" in the
+    -- AddOns sidebar and expands to one canvas-layout subcategory per
+    -- top-level options-table group (General, Stat Priority, then each
+    -- Categories.LIST entry). Each subcategory owns the full canvas — there
+    -- is no internal AceConfigDialog tree to share width with.
+    local parent = Settings.RegisterVerticalLayoutCategory(PANEL_TITLE)
+    Settings.RegisterAddOnCategory(parent)
+    local parentID = parent:GetID()
+
+    local function addSub(name, pathKey)
+        -- AceConfigDialog:AddToBlizOptions(appName, name, parent, ...path)
+        -- with `parent` set calls Settings.RegisterCanvasLayoutSubcategory
+        -- internally; the trailing path arg scopes the rendered panel to
+        -- args[pathKey] of the registered options table. Returns
+        -- (frame, categoryID) — the ID is what Settings.OpenToCategory wants.
+        local frame, categoryID = AceConfigDialog:AddToBlizOptions(REGISTRY_KEY, name, parentID, pathKey)
+        styleBlizPanelLabel(frame)
+        return frame, categoryID
+    end
+
+    -- /cm config (and KCM.Options.Open) lands on General rather than the
+    -- parent; opening the bare parent shows an empty pane until Blizzard
+    -- auto-selects a sub, which is jarring. Capture General's category ID
+    -- as the canonical entry point.
+    local _, generalID = addSub("General", "general")
+    KCM._settingsCategoryID = generalID or parentID
+    addSub("Stat Priority", "statpriority")
+    if KCM.Categories and KCM.Categories.LIST then
+        for _, cat in ipairs(KCM.Categories.LIST) do
+            addSub(cat.displayName, cat.key:lower())
         end
     end
 
