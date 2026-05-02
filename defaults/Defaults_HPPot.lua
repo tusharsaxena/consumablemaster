@@ -8,7 +8,7 @@
 --
 -- Source: Method.gg Midnight consumables list + Wowhead item database,
 -- cross-checked via in-game /cm dump item on a level-90 character.
--- Last refresh: 2026-04-22. See docs/REFRESH_ITEMS.md to re-run.
+-- Last refresh: 2026-04-22. See defaults/README.md to re-run.
 
 local KCM = _G.KCM
 KCM.SEED = KCM.SEED or {}

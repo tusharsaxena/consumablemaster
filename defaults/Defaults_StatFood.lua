@@ -10,7 +10,7 @@
 -- Ranker. We only seed the base-tier IDs for a clean default priority.
 --
 -- Source: Method.gg Midnight consumables list + Warcraft Wiki cooking
--- recipes, 2026-04-22. See docs/REFRESH_ITEMS.md to re-run.
+-- recipes, 2026-04-22. See defaults/README.md to re-run.
 
 local KCM = _G.KCM
 KCM.SEED = KCM.SEED or {}

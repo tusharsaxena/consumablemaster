@@ -13,7 +13,7 @@
 -- for PvP contexts.
 --
 -- Source: Method.gg Midnight consumables list, 2026-04-22.
--- See docs/REFRESH_ITEMS.md to re-run the refresh.
+-- See defaults/README.md to re-run the refresh.
 
 local KCM = _G.KCM
 KCM.SEED = KCM.SEED or {}

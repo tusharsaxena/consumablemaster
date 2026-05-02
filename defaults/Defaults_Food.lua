@@ -13,7 +13,7 @@
 -- any other row.
 --
 -- Source: in-game Silvermoon innkeeper vendor stock (Midnight 12.0).
--- Last refresh: 2026-04-23. See docs/REFRESH_ITEMS.md to re-run.
+-- Last refresh: 2026-04-23. See defaults/README.md to re-run.
 
 local KCM = _G.KCM
 KCM.SEED = KCM.SEED or {}
