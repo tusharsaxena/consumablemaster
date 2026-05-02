@@ -31,6 +31,182 @@ local PANEL_TITLE = "Ka0s Consumable Master"
 local REGISTRY_KEY = "ConsumableMaster"
 
 -- ---------------------------------------------------------------------------
+-- Settings.Helpers + Schema (KickCD-parity scaffolding)
+-- ---------------------------------------------------------------------------
+--
+-- KCM.Settings.Schema is an ordered list of {panel, section, group, path, type,
+-- label, tooltip, default, ...} rows describing every scalar setting the addon
+-- exposes. The same row drives:
+--   * the Options-panel widget (buildSchemaWidget below maps a row → AceConfig
+--     entry that reads/writes through Helpers.Get/Set).
+--   * /cm list / /cm get / /cm set in SlashCommands.lua, so adding a new
+--     scalar = one row.
+--
+-- CM's panel state is mostly list-shaped (priority lists, AIO order, per-spec
+-- stat priority), which doesn't fit a flat scalar schema — those operations
+-- live behind dedicated /cm verbs (priority/stat/aio) following the same
+-- precedent KickCD uses for its spell-list editor. The schema here covers the
+-- genuinely scalar settings only.
+
+KCM.Settings = KCM.Settings or {}
+KCM.Settings.Schema = KCM.Settings.Schema or {}
+local Schema = KCM.Settings.Schema
+
+local Helpers = {}
+KCM.Settings.Helpers = Helpers
+
+-- Walk a dotted path into KCM.db.profile. Returns (parent, key) so the
+-- caller can read or write parent[key]. Returns (nil, nil) before
+-- AceDB has finished initializing or for a path with no resolvable parent.
+function Helpers.Resolve(path)
+    if not (KCM.db and KCM.db.profile) then return nil, nil end
+    local segments = {}
+    for part in string.gmatch(path or "", "[^.]+") do
+        segments[#segments + 1] = part
+    end
+    if #segments == 0 then return nil, nil end
+    local parent = KCM.db.profile
+    for i = 1, #segments - 1 do
+        parent = parent[segments[i]]
+        if type(parent) ~= "table" then return nil, nil end
+    end
+    return parent, segments[#segments]
+end
+
+function Helpers.Get(path)
+    local parent, key = Helpers.Resolve(path)
+    if not parent then return nil end
+    return parent[key]
+end
+
+-- KickCD's CONFIG_CHANGED bus has live module subscribers. CM's central
+-- refresh is Pipeline.RequestRecompute (called via afterMutation), so this
+-- is a stub today — kept so the API matches KickCD's and so we can bolt
+-- on subscribers later without changing call sites.
+function Helpers.FireConfigChanged(_section)
+    -- No-op: see comment above.
+end
+
+function Helpers.Set(path, section, value)
+    local parent, key = Helpers.Resolve(path)
+    if not parent then return false end
+    parent[key] = value
+    Helpers.FireConfigChanged(section)
+    return true
+end
+
+function Helpers.SchemaForPanel(panelKey)
+    local out = {}
+    for _, def in ipairs(Schema) do
+        if def.panel == panelKey then out[#out + 1] = def end
+    end
+    return out
+end
+
+function Helpers.FindSchema(path)
+    for _, def in ipairs(Schema) do
+        if def.path == path then return def end
+    end
+    return nil
+end
+
+-- One-shot schema lint, called from O.Register after every settings file has
+-- loaded its rows. Errors are printed but non-fatal: a broken row should
+-- surface a clear chat error, not block the entire panel from registering.
+local _validPanels   = { general = true }
+local _validSections = { general = true }
+local _validTypes    = { bool = true, number = true, string = true, color = true }
+
+local function _printSchemaError(prefix, msg)
+    print("|cff00ffff[CM]|r |cffff0000schema error|r: " .. prefix .. ": " .. msg)
+end
+
+function Helpers.ValidateSchema()
+    local errors = 0
+    for i, def in ipairs(Schema) do
+        local where = "row #" .. i .. " (" .. tostring(def.path or "<no path>") .. ")"
+        if type(def) ~= "table" then
+            _printSchemaError(where, "row is not a table")
+            errors = errors + 1
+        else
+            if type(def.path) ~= "string" or def.path == "" then
+                _printSchemaError(where, "missing or empty `path`")
+                errors = errors + 1
+            end
+            if not _validPanels[def.panel] then
+                _printSchemaError(where, "invalid `panel` = " .. tostring(def.panel))
+                errors = errors + 1
+            end
+            if not _validSections[def.section] then
+                _printSchemaError(where, "invalid `section` = " .. tostring(def.section))
+                errors = errors + 1
+            end
+            if not _validTypes[def.type] then
+                _printSchemaError(where, "invalid `type` = " .. tostring(def.type))
+                errors = errors + 1
+            end
+        end
+    end
+    return errors
+end
+
+-- Refresh every open AceConfigDialog panel. Same machinery the panel
+-- mutation helpers use; called after a slash-driven Set so an open panel
+-- reflects the new value without the user having to navigate away.
+function Helpers.RefreshAllPanels()
+    if O.Refresh then O.Refresh() end
+end
+
+-- Write `path` through Helpers.Set, fire onChange (if defined on the schema
+-- row), then refresh open panels. Returns true on success, false if no schema
+-- row matches `path`. Slash commands use this so the write/notify/refresh path
+-- is identical to a panel widget mutation.
+function Helpers.SetAndRefresh(path, value)
+    local def = Helpers.FindSchema(path)
+    if not def then return false end
+    if not Helpers.Set(def.path, def.section, value) then return false end
+    if def.onChange then
+        local ok, err = pcall(def.onChange, value)
+        if not ok then
+            print("|cff00ffff[CM]|r onChange for " .. tostring(def.path)
+                  .. " failed: " .. tostring(err))
+        end
+    end
+    Helpers.RefreshAllPanels()
+    return true
+end
+
+-- Restore every schema row for `panelKey` to its default. Mirrors KickCD's
+-- per-panel Defaults button. Today there's no UI button calling this, but
+-- it's wired so /cm reset (and any future per-panel CLI reset) can use it.
+function Helpers.RestoreDefaults(panelKey)
+    for _, def in ipairs(Helpers.SchemaForPanel(panelKey)) do
+        if def.default ~= nil then
+            Helpers.Set(def.path, def.section, def.default)
+            if def.onChange then pcall(def.onChange, def.default) end
+        end
+    end
+    Helpers.RefreshAllPanels()
+end
+
+-- Schema rows -------------------------------------------------------------
+-- The `general.debug` row is the canonical scaffolding example: bool toggle,
+-- defaults to false, onChange seeds the runtime KCM.Debug flag (no-op today
+-- since IsOn reads db.profile.debug directly, but kept as a hook for any
+-- future runtime mirror).
+Schema[#Schema + 1] = {
+    panel    = "general", section = "general", group = "Diagnostics",
+    path     = "debug",   type    = "bool",
+    label    = "Debug mode",
+    tooltip  = "Print per-event diagnostics to chat. Same as /cm debug.",
+    default  = false,
+    onChange = function(v)
+        local state = v and "|cff00ff00ON|r" or "|cffff5555OFF|r"
+        print("|cff00ffff[CM]|r Debug mode " .. state)
+    end,
+}
+
+-- ---------------------------------------------------------------------------
 -- Shared helpers
 -- ---------------------------------------------------------------------------
 
@@ -234,17 +410,10 @@ local function buildGeneralArgs()
             name  = "Debug mode",
             desc  = "Print per-event diagnostics to chat. Same as /cm debug.",
             width = "full",
-            get   = function()
-                return KCM.Debug and KCM.Debug.IsOn and KCM.Debug.IsOn() or false
-            end,
-            set   = function(_, val)
-                if not (KCM.Debug and KCM.Debug.Toggle) then return end
-                -- Toggle only if the requested value differs from current,
-                -- so clicking the checkbox has deterministic semantics
-                -- regardless of what Toggle's default behaviour is.
-                local cur = KCM.Debug.IsOn and KCM.Debug.IsOn()
-                if cur ~= val then KCM.Debug.Toggle() end
-            end,
+            -- Read+write through the schema layer so this widget, /cm debug,
+            -- and /cm set debug all share one write+notify+refresh path.
+            get   = function() return Helpers.Get("debug") and true or false end,
+            set   = function(_, val) Helpers.SetAndRefresh("debug", val and true or false) end,
         },
 
         resync = {

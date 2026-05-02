@@ -65,9 +65,27 @@ local F = KCM.Foo
 
 - Slash forms: `/cm` is the short form, `/consumablemaster` is the long alias. Both are registered in `Core:OnInitialize` (`Core.lua`) and route to `KCM:OnSlashCommand` in `SlashCommands.lua`.
 - Every chat line the addon emits — slash output, Options notices, MacroManager warnings, and the `/run print(...)` empty-state bodies embedded in the macros themselves — wears a cyan `|cff00ffff[CM]|r` tag. `SlashCommands.lua` defines a `say()` helper that all dump/help prints route through; the prefix is unconditional. Don't introduce raw `print(...)` calls in the addon — go through `say()` (slash UX), `KCM.Debug.Print` (gated logs), or hard-code the `|cff00ffff[CM]|r ` prefix inline if you need a one-off chat print.
-- Toggle verbose logs: `/cm debug`. Internally this flips `KCM.db.profile.debug`. Call `KCM.Debug.Print(fmt, ...)` — it early-returns when off, so unconditional calls are safe.
+- Toggle verbose logs: `/cm debug`. Internally this flips `KCM.db.profile.debug` through the schema layer (`Helpers.SetAndRefresh("debug", ...)`) so the panel checkbox, `/cm debug`, and `/cm set debug true|false` all share one write+notify+refresh path. Call `KCM.Debug.Print(fmt, ...)` — it early-returns when off, so unconditional calls are safe.
 - Dump internals: `/cm dump <target>` where targets are `categories`, `statpriority`, `bags`, `item <id>`, `pick <catKey>`. `DUMP_TARGETS` in `SlashCommands.lua` is a single source of truth — add a row and it appears in help automatically. `item` shows parsed tooltip + raw lines (pattern-debugging view appended); `pick` shows the effective priority list with per-entry ranker scores and the owned-item pick.
 - Force a resync: `/cm resync` — invalidates TooltipCache, re-runs discovery, runs a direct (non-coalesced) Recompute.
+
+### Schema-driven slash UX (KickCD-parity)
+
+Every truly-scalar setting lives as a row in `KCM.Settings.Schema` (declared in `Options.lua`). Each row drives both the AceConfig widget (read/write through `Helpers.Get`/`Helpers.SetAndRefresh`) AND the slash CLI:
+
+- `/cm list` — every schema row, grouped by panel, with current value.
+- `/cm get <path>` — single-row read (e.g. `/cm get debug`).
+- `/cm set <path> <value>` — type-validated write; same code path as the panel widget.
+
+Adding a new scalar = one schema row in `Options.lua`. The validator (`Helpers.ValidateSchema`) lints rows at register-time and prints malformed entries to chat without blocking registration. The schema layer mirrors KickCD's `core/KickCD.lua` + `settings/Panel.lua` design — see `/mnt/d/Profile/Users/Tushar/Documents/GIT/KickCD/` for the reference implementation.
+
+CM's panel state is mostly *list-shaped* (priority lists, per-spec stats, AIO order), which doesn't fit a flat scalar schema. Those operations live in dedicated CLI verbs that follow the same write+notify+refresh contract:
+
+- `/cm priority <cat> list|add|remove|up|down|reset` — per-category priority list editor. `<id>` accepts `12345` or `s:5512` (spell sentinel composed via `KCM.ID.AsSpell`). Composite cats are rejected here — use `/cm aio` instead.
+- `/cm stat list|primary|secondary|reset [<specKey>]` — per-spec stat priority. `<specKey>` is `<classID>_<specID>` (canonical) or `CLASS:SPEC` (friendly, e.g. `SHAMAN:ENHANCEMENT`); defaults to current spec.
+- `/cm aio <key> list|toggle|up|down|reset` — composite-category editor. Sub-categories are locked to their section, so `up`/`down` infer the section from where the ref appears.
+
+All three namespaces dispatch through `findCommand` against an ordered `*_COMMANDS` table; the help index is generated from the same table — adding a verb = one row.
 
 `Core.lua` has a commented-out per-category recompute log. Uncomment only for short debugging sessions; it fires N × M times during login (N categories × M `GET_ITEM_INFO_RECEIVED` events) and floods chat.
 
@@ -140,6 +158,8 @@ Run `/cm dump item <id>` to see the subType + parsed tooltip. If subType is wron
 - **Ship functional, defer polish.** The user has explicitly said: when core functionality lands, move on — don't stop to polish UX mid-milestone. Revisit polish later as a dedicated pass.
 - Don't add comments that explain *what* well-named code does. Only add a comment when the *why* is non-obvious (subtle invariant, workaround for a specific Blizzard quirk, a hidden constraint).
 - Don't create docs or planning files unless asked.
+- **Never auto-commit or auto-push.** The user chooses when to `git commit` and `git push`. Even after finishing a coherent change, do not run `git commit` unless the user has explicitly asked for it in the current request. Offering to commit at the end of a turn is fine; running the commit yourself is not.
+- **Never bump the version without an explicit instruction.** Do not edit `KCM.VERSION` in `Core.lua`, `## Version:` in `ConsumableMaster.toc`, the version badge / inline version in `README.md`, or add a changelog entry, unless the user has explicitly asked for a version bump in the current request. Releases are the user's call, not a side effect of finishing a feature.
 
 ---
 
@@ -169,7 +189,7 @@ Run `/cm dump item <id>` to see the subType + parsed tooltip. If subType is wron
 - Candidate set + effective priority + DB mutators: `Selector.lua`
 - The only protected-API caller (single picks via `SetMacro`, composite picks via `SetCompositeMacro`, both share the same combat-deferral queue): `MacroManager.lua`
 - Settings panel — registers a `Settings.RegisterVerticalLayoutCategory` parent ("Ka0s Consumable Master") and one `AceConfigDialog:AddToBlizOptions` sub-page per top-level options group (General, Stat Priority, then each `Categories.LIST` entry). Each sub-page is scoped via the path arg, so it owns the full canvas — no internal AceConfigDialog tree: `Options.lua`
-- `/cm` (and `/consumablemaster` alias) dispatcher + reset popup + `say()` helper that prepends the cyan `[CM]` prefix to every chat line: `SlashCommands.lua`
+- `/cm` (and `/consumablemaster` alias) dispatcher driven by an ordered `COMMANDS` table (one row per top-level verb; help is generated from it). Schema-driven `list/get/set` plus dedicated `priority`/`stat`/`aio` verb namespaces (each with their own `*_COMMANDS` table). Reset popup + `say()` helper that prepends the cyan `[CM]` prefix to every chat line live here too: `SlashCommands.lua`
 - Debug helper: `Debug.lua`
 - AceGUI custom widgets (referenced from `Options.lua` via `dialogControl`):
   - Row of [status] [item icon] [name] [pick star]: `KCMItemRow.lua`
