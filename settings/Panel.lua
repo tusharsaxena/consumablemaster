@@ -575,7 +575,26 @@ end
 -- ---------------------------------------------------------------------
 
 KCM.Settings.Schema[#KCM.Settings.Schema + 1] = {
-    panel    = "general", section = "general", group = "Diagnostics",
+    panel    = "general", section = "general", group = "General",
+    path     = "enabled", type    = "bool",
+    label    = "Enable",
+    tooltip  = "Master enable for the addon. When off, the recompute pipeline is a no-op — macros keep their last-written body and stop updating with bag / spec / combat events.",
+    default  = true,
+    onChange = function(v)
+        local state = v and "|cff00ff00ON|r" or "|cffff5555OFF|r"
+        print("|cff00ffff[CM]|r Master enable " .. state)
+        -- Off→on: kick a recompute so macros refresh against the current
+        -- bag / spec state immediately rather than waiting for the next
+        -- event. Off→off is harmless (RequestRecompute schedules a run
+        -- which the gate in Pipeline.Recompute then skips).
+        if v and KCM.Pipeline and KCM.Pipeline.RequestRecompute then
+            KCM.Pipeline.RequestRecompute("master_enable")
+        end
+    end,
+}
+
+KCM.Settings.Schema[#KCM.Settings.Schema + 1] = {
+    panel    = "general", section = "general", group = "General",
     path     = "debug",   type    = "bool",
     label    = "Debug mode",
     tooltip  = "Print per-event diagnostics to chat. Same as /cm debug.",
@@ -689,9 +708,10 @@ local function registerPanel()
     Settings.RegisterAddOnCategory(main)
     KCM.Settings.main = main
 
-    -- Default landing target is the parent (About). General overrides this
-    -- once it registers so /cm config (and KCM.Options.Open) drop the user
-    -- on a configurable surface, not the splash page.
+    -- /cm config (and KCM.Options.Open) lands on the parent — the About
+    -- splash with logo + tagline + slash help. Sub-pages are forced
+    -- expanded in the AddOns sidebar (see O.Open) so all panels are one
+    -- click away from the landing page.
     KCM._settingsCategoryID = main:GetID()
 
     for _, key in ipairs(KCM.Settings.order) do
@@ -753,11 +773,46 @@ function O.RequestRefresh()
     end)
 end
 
+-- Expand the parent in the AddOns left tree so every sub-page is visible.
+-- The expansion lives on the visual list-entry element, NOT on the
+-- SettingsCategory data object — so we have to reach into
+-- SettingsPanel:GetCategoryList():GetCategoryEntry(category). That path
+-- is private Blizzard API and could shift across patches; the pcall
+-- degrades gracefully to "panel opens but parent isn't unfolded" if any
+-- intermediate call goes missing. Method-or-field fallback on
+-- GetCategoryList covers minor API drift between client builds.
+local function expandMainCategory()
+    local main = KCM.Settings and KCM.Settings.main
+    if not (main and SettingsPanel) then return end
+    pcall(function()
+        local list = SettingsPanel.GetCategoryList
+            and SettingsPanel:GetCategoryList()
+            or SettingsPanel.CategoryList
+        if not (list and list.GetCategoryEntry) then return end
+        local entry = list:GetCategoryEntry(main)
+        if entry and entry.SetExpanded then
+            entry:SetExpanded(true)
+        end
+    end)
+end
+
 function O.Open()
+    -- Settings UI is protected during combat — opening will silently fail
+    -- mid-fight. Surface a chat notice instead so the user knows why.
+    if InCombatLockdown and InCombatLockdown() then
+        print("|cff00ffff[CM]|r cannot open settings during combat. Try again after combat ends.")
+        return false
+    end
+
     local id = KCM._settingsCategoryID
     if type(id) ~= "number" then id = tonumber(id) end
     if Settings and Settings.OpenToCategory and id then
         Settings.OpenToCategory(id)
+        -- Expand AFTER opening so SettingsPanel is realized and the
+        -- category-entry element exists in the visual tree. Re-expanding
+        -- on every open means a manual mid-session collapse doesn't stick
+        -- across the next /cm config.
+        expandMainCategory()
         return true
     end
     print("|cff00ffff[CM]|r settings panel unavailable on this client; use /cm.")

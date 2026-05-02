@@ -59,14 +59,39 @@ See [macro-manager.md](./macro-manager.md#action-bar-icon-convention) for the fu
 
 ## `Settings.OpenToCategory` wants the numeric category ID, not a frame
 
-`Settings.RegisterCanvasLayoutSubcategory(parent, frame, name)` returns a category object whose `:GetID()` is the numeric ID `Settings.OpenToCategory` accepts. Passing the frame produces a range error. Capture the ID at registration time:
+`Settings.RegisterCanvasLayoutCategory` (parent) and `Settings.RegisterCanvasLayoutSubcategory` (sub-pages) both return a category object whose `:GetID()` is the numeric ID `Settings.OpenToCategory` accepts. Passing the frame produces a range error. Capture the ID at registration time:
 
 ```lua
-local sub = Settings.RegisterCanvasLayoutSubcategory(parent, panel, "General")
-KCM._settingsCategoryID = sub:GetID()
+local main = Settings.RegisterCanvasLayoutCategory(panel, PANEL_TITLE)
+KCM._settingsCategoryID = main:GetID()
 ```
 
-`/cm config` (in `SlashCommands.lua`) uses the General sub-page ID stored in `KCM._settingsCategoryID` to open directly to General instead of the parent About shell.
+`/cm config` (in `SlashCommands.lua`) uses the parent's ID stored in `KCM._settingsCategoryID` to land on the About splash.
+
+## Forcing a parent category to render expanded in the AddOns sidebar
+
+`SettingsCategoryMixin` does NOT expose a `SetExpanded` method — that lives on the visual list-entry element. To force the parent's sub-pages to render unfolded by default, reach into `SettingsPanel:GetCategoryList():GetCategoryEntry(category):SetExpanded(true)`. The whole walk is wrapped in `pcall` because every step (`SettingsPanel`, `GetCategoryList`, `GetCategoryEntry`) is private Blizzard API and could shift between patches; if any call goes missing the panel still opens, just without the parent unfolded.
+
+```lua
+local function expandMainCategory()
+    local main = KCM.Settings.main
+    if not (main and SettingsPanel) then return end
+    pcall(function()
+        local list = SettingsPanel.GetCategoryList
+            and SettingsPanel:GetCategoryList()
+            or SettingsPanel.CategoryList
+        if not (list and list.GetCategoryEntry) then return end
+        local entry = list:GetCategoryEntry(main)
+        if entry and entry.SetExpanded then
+            entry:SetExpanded(true)
+        end
+    end)
+end
+```
+
+Call it AFTER `Settings.OpenToCategory` so `SettingsPanel` is realized and the entry element exists. Re-running on every `KCM.Options.Open` means a manual mid-session collapse doesn't stick across the next `/cm config`.
+
+The Settings panel is protected during combat (`InCombatLockdown()` blocks `Settings.OpenToCategory`); guard with an early-return + chat notice rather than letting it silently fail.
 
 ## `LEARNED_SPELL_IN_TAB` removed in retail
 

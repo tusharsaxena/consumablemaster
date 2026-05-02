@@ -25,6 +25,7 @@ function KCM.ID.ItemID(id)  return (type(id) == "number" and id > 0) and  id or 
 KCM.dbDefaults = {
     profile = {
         schemaVersion = 1,
+        enabled = true,    -- master enable; when false the recompute pipeline early-returns
         debug = false,
         categories = {
             FOOD      = { added = {}, blocked = {}, pins = {}, discovered = {} },
@@ -114,6 +115,18 @@ end
 
 function P.Recompute(reason)
     if not KCM.Categories or not KCM.Categories.LIST then return end
+    -- Master enable. When off, every recompute path is a no-op — including
+    -- /cm resync and /cm rewritemacros, which both flow through here. Macros
+    -- keep their last-written body, which is the right "addon is off" UX:
+    -- the user disabled deliberately and expects nothing to change until
+    -- they re-enable. The toggle's onChange in settings/Panel.lua kicks
+    -- a recompute on the off→on transition so macros refresh immediately.
+    if KCM.db and KCM.db.profile and KCM.db.profile.enabled == false then
+        if KCM.Debug and KCM.Debug.Print then
+            KCM.Debug.Print("Pipeline.Recompute skipped (disabled): reason=%s", tostring(reason))
+        end
+        return
+    end
     -- Per-pass score cache. `fields[id]` memoizes GetItemInfo +
     -- TooltipCache.Get so items appearing across multiple categories (pot
     -- HOT scans, overlapping seeds) don't re-parse tooltips. `[catKey][id]`

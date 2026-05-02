@@ -1,15 +1,17 @@
 -- settings/General.lua — General page.
 --
--- Three sections:
---   * Diagnostics  — Debug toggle (schema-driven; same row /cm get/set debug uses).
---   * Maintenance  — Force resync | Force rewrite macros (paired 50/50).
---   * Reset        — Reset all priorities (full-width, StaticPopup-confirmed).
+-- Two sections:
+--   * General      — paired [Enable] | [Debug] checkboxes (both schema-driven;
+--                    same rows /cm get/set enabled and /cm get/set debug use).
+--   * Maintenance  — Row 1: Force resync | Force rewrite macros (paired 50/50).
+--                    Row 2: Reset all priorities (full-width, StaticPopup-confirmed).
 --
--- All three execute paths are shared with the slash commands so behaviour
--- stays identical regardless of entry point.
+-- Every execute path is shared with the slash commands so behaviour stays
+-- identical regardless of entry point.
 
-local KCM = _G.KCM
-local H   = KCM.Settings.Helpers
+local KCM    = _G.KCM
+local H      = KCM.Settings.Helpers
+local AceGUI = LibStub("AceGUI-3.0")
 
 local function inCombatNotice(label)
     print(("|cff00ffff[CM]|r in combat — %s deferred until regen."):format(label))
@@ -64,12 +66,19 @@ StaticPopupDialogs["KCM_RESET_ALL"] = {
 
 local function render(ctx)
     H.ResetScroll(ctx)
+    local scroll = H.EnsureScroll(ctx)
 
-    -- Diagnostics: schema-driven so the slash command path uses the same
-    -- write+refresh wiring as the toggle.
-    H.Section(ctx, "Diagnostics")
-    local debugDef = H.FindSchema("debug")
-    if debugDef then H.RenderField(ctx, debugDef) end
+    -- General: paired [Enable] | [Debug] schema-driven row so the slash
+    -- command path uses the same write+refresh wiring as the toggles.
+    H.Section(ctx, "General")
+    local enabledDef = H.FindSchema("enabled")
+    local debugDef   = H.FindSchema("debug")
+    local row = AceGUI:Create("SimpleGroup")
+    row:SetLayout("Flow")
+    row:SetFullWidth(true)
+    if enabledDef then H.RenderField(ctx, enabledDef, row, 0.5) end
+    if debugDef   then H.RenderField(ctx, debugDef,   row, 0.5) end
+    scroll:AddChild(row)
 
     H.Section(ctx, "Maintenance")
     H.ButtonPair(ctx,
@@ -83,15 +92,13 @@ local function render(ctx)
             tooltip = "Clear cached macro fingerprints and re-issue every KCM macro (body + stored icon). Use this if a macro's action-bar icon looks stale. Same as /cm rewritemacros. Blocked in combat.",
             onClick = doForceRewriteMacros,
         })
-
-    H.Section(ctx, "Reset")
     H.Button(ctx, {
         text    = "Reset all priorities",
         tooltip = "Wipe all added/blocked/pinned items and stat-priority overrides. Seed defaults are restored. This cannot be undone.",
         onClick = function() StaticPopup_Show("KCM_RESET_ALL") end,
     })
 
-    if ctx.scroll and ctx.scroll.DoLayout then ctx.scroll:DoLayout() end
+    if scroll.DoLayout then scroll:DoLayout() end
 end
 
 local function Build(mainCategory)
@@ -101,17 +108,7 @@ local function Build(mainCategory)
 
     local ctx = H.CreatePanel("KCMGeneralPanel", "General", { panelKey = "general" })
     H.SetRenderer(ctx, render)
-
-    local sub = Settings.RegisterCanvasLayoutSubcategory(mainCategory, ctx.panel, "General")
-
-    -- /cm config and KCM.Options.Open() should land on General — the parent
-    -- canvas is the About splash, which is a useless detour for users who
-    -- ran a command intended to configure things.
-    if sub and sub.GetID then
-        KCM._settingsCategoryID = sub:GetID()
-    end
-
-    return sub
+    return Settings.RegisterCanvasLayoutSubcategory(mainCategory, ctx.panel, "General")
 end
 
 if KCM.Settings and KCM.Settings.RegisterTab then
