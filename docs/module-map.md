@@ -163,7 +163,7 @@ KCM.TooltipCache.InvalidateAll()
 KCM.TooltipCache.IsPending(itemID) -> bool
 KCM.TooltipCache.PendingIDs() -> { itemIDs }
 KCM.TooltipCache.IsUsableByPlayer(itemID) -> bool
-KCM.TooltipCache.Stats() -> { hits, misses, parses, pending }
+KCM.TooltipCache.Stats() -> { total, pending }
 ```
 
 If `C_TooltipInfo.GetItemByID` returns nil or empty, the cache marks the id `pending`. The first `GET_ITEM_INFO_RECEIVED` for that id invalidates the entry and triggers a recompute (for bag items only — see [pipeline.md GIIR split](./pipeline.md#giir-bagnon-bag-split)).
@@ -171,14 +171,13 @@ If `C_TooltipInfo.GetItemByID` returns nil or empty, the cache marks the id `pen
 ### SpecHelper (`SpecHelper.lua`)
 
 ```lua
-KCM.SpecHelper.GetCurrent() -> classID, specID, key, specName, className, classFile
+KCM.SpecHelper.GetCurrent() -> classID, specID, specKey, specName
 KCM.SpecHelper.MakeKey(classID, specID) -> "<classID>_<specID>"
-KCM.SpecHelper.AllSpecs() -> { { classID, specID, key, name, ... }, ... }
+KCM.SpecHelper.AllSpecs() -> { { classID, specID, specKey, specName }, ... }
 KCM.SpecHelper.GetStatPriority(specKey) -> { primary, secondary = { ... } }
-KCM.SpecHelper.SetStatPriority(specKey, priority)
 ```
 
-`GetStatPriority` merges in this order: user override (`db.profile.statPriority[specKey]`) → seed default (`KCM.SEED.STAT_PRIORITY[specKey]`) → class-primary fallback. `SetStatPriority` only writes the user override.
+`GetStatPriority` merges in this order: user override (`db.profile.statPriority[specKey]`) → seed default (`KCM.SEED.STAT_PRIORITY[specKey]`) → class-primary fallback. There is no setter — user-override writes go directly through `db.profile.statPriority[specKey] = { primary, secondary }` (Options panel via the local `writeStatPriority` helper, slash CLI via `/cm stat primary` / `/cm stat secondary`).
 
 ### Options (`Options.lua`)
 

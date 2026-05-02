@@ -151,12 +151,6 @@ Hovering the **blue info button** on any row shows the per-item score breakdown,
 | `/cm reset` or "Reset all priorities" says it didn't work. | Saved variables haven't initialized — reload and try again. Only happens during a failed initial load. |
 | I want to restore a seed list (after manually removing items). | **Reset category** on the category's page wipes that category's added / blocked / pinned entries; **Reset all priorities** (General page) wipes everything across all categories. |
 
-## Contributing
-
-Architecture reference for contributors: [ARCHITECTURE.md](ARCHITECTURE.md). Covers the module map, the recompute pipeline, the schema-driven settings system, the saved-variables shape, and the project's protected-API / module-publishing / chat-prefix conventions.
-
-CLAUDE.md and ARCHITECTURE.md are lean indexes; topic-specific detail lives in `docs/` (per-module interfaces, recompute pipeline, AceDB schema, MacroManager internals, Midnight quirks, scope boundaries, common tasks). See the doc index in either file.
-
 ## Issues and feature requests
 
 All bugs, feature requests, and outstanding work are tracked at [https://github.com/tusharsaxena/consumablemaster/issues](https://github.com/tusharsaxena/consumablemaster/issues). Please file new reports there rather than as comments — the issue tracker is the single source of truth for the project's backlog.

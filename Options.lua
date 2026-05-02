@@ -16,9 +16,10 @@
 --                     input, ranked priority list (↑/↓/X per row), per-
 --                     category reset.
 --
--- Mutation flow: widget -> KCM.Selector.* (or SpecHelper.SetStatPriority)
--- -> KCM.Pipeline.RequestRecompute -> KCM.Options.Refresh. The Refresh
--- call is what makes the UI re-read the underlying state.
+-- Mutation flow: widget -> KCM.Selector.* (or direct write to
+-- db.profile.statPriority via the local writeStatPriority helper) ->
+-- KCM.Pipeline.RequestRecompute -> KCM.Options.Refresh. The Refresh call
+-- is what makes the UI re-read the underlying state.
 
 local KCM = _G.KCM
 KCM.Options = KCM.Options or {}
@@ -1201,7 +1202,7 @@ end
 -- rapid tab clicks appeared to ignore the first press while the previous
 -- rebuild was still in flight. We cache the full tree and invalidate in
 -- O.Refresh, which already fires after every mutation that changes what
--- the panel should show (Selector.*, SpecHelper.SetStatPriority, resync,
+-- the panel should show (Selector.*, stat-priority write, resync,
 -- reset-all, Pipeline.Recompute).
 O._cache = nil
 
