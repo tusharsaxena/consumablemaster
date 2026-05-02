@@ -1,7 +1,7 @@
 # Ka0s Consumable Master
 
 ![version](https://img.shields.io/badge/version-1.3.0-blue)
-![wow](https://img.shields.io/badge/WoW-Midnight%2012.0.5-orange)
+![wow](https://img.shields.io/badge/WoW-Midnight_12.0.5-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 ![alt text](https://media.forgecdn.net/attachments/1646/103/consumemaster-logo-jpg.jpg)
