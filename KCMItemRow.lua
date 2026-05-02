@@ -1,17 +1,17 @@
 -- KCMItemRow.lua — Custom AceGUI widget for a single priority-list row.
 --
 -- Renders [owned icon] [item icon] [quality glyph?] [item name] [pick star] on
--- a mouse-enabled frame, with GameTooltip:SetItemByID on hover. Used instead
--- of a plain `type = "description"` so the row can:
+-- a mouse-enabled frame, with GameTooltip:SetItemByID on hover. The custom
+-- widget exists so the row can:
 --   1. Show the real in-game item tooltip on hover.
 --   2. Surface the item's crafting-quality tier as a glyph (the same one
 --      Blizzard puts inline in consumable tooltips), when applicable.
 --   3. Surface a "currently picked" glyph without leaning on `<- pick` text.
 --
--- AceConfig wires this up via `dialogControl = "KCMItemRow"` on a description
--- entry. The row's data (itemID, owned?, isPick?) is passed via the entry's
--- `arg` field, which AceConfigDialog forwards to `SetCustomData`. We ignore
--- the stock `SetText` payload — the widget builds its own display string.
+-- Acquired via `AceGUI:Create("KCMItemRow")` in settings/Category.lua, then
+-- configured with `:SetCustomData({ itemID, owned, isPick, fallbackName })`.
+-- The SetText / SetFontObject methods are no-op stubs so the widget tolerates
+-- any AceGUI consumer that pre-emptively calls them on every child.
 
 local Type, Version = "KCMItemRow", 2
 local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
@@ -153,11 +153,9 @@ local methods = {
         self:RefreshDisplay()
     end,
 
-    -- AceConfigDialog calls SetText(name) and SetFontObject(font) for every
-    -- `type = "description"` entry (AceConfigDialog-3.0.lua:1402,1406-1410).
-    -- We ignore both — the widget builds its own label from itemID and uses a
-    -- fixed font. Without these stubs AceConfigDialog errors with
-    -- "attempt to call a nil value" the moment the panel renders.
+    -- No-op stubs so the widget tolerates any AceGUI consumer that
+    -- pre-emptively calls SetText / SetFontObject on every child. The widget
+    -- builds its own label from itemID and uses a fixed font.
     ["SetText"]       = function(self, _) end,
     ["SetFontObject"] = function(self, _) end,
 

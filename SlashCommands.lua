@@ -8,8 +8,8 @@
 --   * DUMP_TARGETS — `/cm dump <target>` namespace, kept for diagnostics.
 --
 -- /cm list / get / set are schema-driven via KCM.Settings.Helpers (see
--- Options.lua). /cm priority|stat|aio are dedicated verb namespaces for the
--- list-shaped state that doesn't fit a flat scalar schema.
+-- settings/Panel.lua). /cm priority|stat|aio are dedicated verb namespaces
+-- for the list-shaped state that doesn't fit a flat scalar schema.
 --
 -- KickCD's slash handler (core/KickCD.lua) is the design reference.
 
@@ -75,8 +75,9 @@ end
 
 -- Every panel mutation funnels through here: request a pipeline recompute so
 -- the macro bodies catch up, then redraw the open panel. Mirrors the
--- afterMutation helper in Options.lua so a CLI mutation looks identical to a
--- panel-driven one downstream.
+-- afterMutation helpers in settings/General.lua / StatPriority.lua /
+-- Category.lua so a CLI mutation looks identical to a panel-driven one
+-- downstream.
 local function afterMutation(reason)
     if KCM.Pipeline and KCM.Pipeline.RequestRecompute then
         KCM.Pipeline.RequestRecompute(reason or "slash_mutation")
@@ -531,7 +532,7 @@ end
 -- Schema-driven /cm list / get / set
 -- ---------------------------------------------------------------------------
 --
--- Every row in KCM.Settings.Schema (declared in Options.lua) automatically
+-- Every row in KCM.Settings.Schema (declared in settings/Panel.lua) automatically
 -- gets `/cm get <path>` and `/cm set <path> <value>` for free, plus shows up
 -- in `/cm list`. Adding a new scalar setting = one schema row.
 

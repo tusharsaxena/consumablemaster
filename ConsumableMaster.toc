@@ -39,8 +39,16 @@ Selector.lua
 MacroManager.lua
 KCMIconButton.lua
 KCMScoreButton.lua
-KCMHeading.lua
 KCMMacroDragIcon.lua
 KCMItemRow.lua
-Options.lua
+
+# settings/Panel.lua first: it creates KCM.Settings.{Helpers, Schema, builders}
+# and exposes KCM.Settings.RegisterTab, which the per-tab modules below call.
+# It also publishes the KCM.Options shim (Register/Refresh/RequestRefresh/Open)
+# so Core / Debug / SlashCommands / Pipeline keep working unchanged.
+settings\Panel.lua
+settings\General.lua
+settings\StatPriority.lua
+settings\Category.lua
+
 SlashCommands.lua

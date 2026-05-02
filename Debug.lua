@@ -18,8 +18,8 @@ function KCM.Debug.Toggle()
     -- Route through Settings.Helpers so the schema row's onChange runs and any
     -- open Options panel re-syncs the checkbox. Falls through to a direct DB
     -- write on the early-boot edge where Helpers hasn't been published yet
-    -- (Options.lua loads after Debug.lua, but slash registration runs later
-    -- so this is a defensive guard, not an expected path).
+    -- (settings/Panel.lua loads after Debug.lua, but slash registration runs
+    -- later so this is a defensive guard, not an expected path).
     local H = KCM.Settings and KCM.Settings.Helpers
     if H and H.SetAndRefresh and H.SetAndRefresh("debug", next) then
         KCM.Debug.Print("Debug prints are now enabled.")

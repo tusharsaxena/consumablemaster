@@ -1,13 +1,14 @@
 -- KCMScoreButton.lua — Priority-row "score" button.
 --
--- Same visual + hover-swatch behaviour as KCMIconButton, but ignores
--- AceConfigDialog's SetLabel call so the option's `name` field can drive
--- the tooltip title (yellow header line) WITHOUT rendering a text label
--- underneath the icon. Tooltip body comes from the option's `desc`; the
--- build loop in Options.lua composes that from Ranker.Explain output so
--- each row shows its own per-item score breakdown.
+-- Same visual + hover-swatch behaviour as KCMIconButton, but with a no-op
+-- SetLabel so callers can pass an arbitrary string without a label
+-- rendering underneath the icon. The label string is repurposed as the
+-- tooltip title (yellow header line); the tooltip body is composed from
+-- Ranker.Explain output by settings/Category.lua so each row shows its
+-- own per-item score breakdown.
 --
--- Referenced via `dialogControl = "KCMScoreButton"`.
+-- Acquired directly via `AceGUI:Create("KCMScoreButton")` in
+-- settings/Category.lua.
 
 local Type, Version = "KCMScoreButton", 1
 local AceGUI = LibStub and LibStub("AceGUI-3.0", true)

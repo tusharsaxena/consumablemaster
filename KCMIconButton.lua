@@ -4,7 +4,8 @@
 -- but with a solid gold BACKGROUND swatch behind the icon on mouseover so the
 -- priority-row action buttons (up / down / delete) have an obvious hover state.
 -- The icon lives on the ARTWORK draw layer so the swatch renders cleanly behind
--- it. Referenced from Options.lua via `dialogControl = "KCMIconButton"`.
+-- it. Acquired directly via `AceGUI:Create("KCMIconButton")` in
+-- settings/Category.lua's row-button helper.
 
 local Type, Version = "KCMIconButton", 1
 local AceGUI = LibStub and LibStub("AceGUI-3.0", true)

@@ -8,10 +8,10 @@
 -- cursor. Dropping on an action slot calls Blizzard's own PlaceAction flow —
 -- no protected-API call from us, so this stays taint-free even mid-combat.
 --
--- The widget receives { macroName = "KCM_FOO" } via AceConfig's `arg` field
--- (forwarded through SetCustomData). Icon and tooltip are pulled fresh on
--- each refresh so they track the current macro body (which auto-rewrites as
--- bags change).
+-- Acquired via `AceGUI:Create("KCMMacroDragIcon")` in settings/Category.lua,
+-- then configured with `:SetCustomData({ macroName = "KCM_FOO" })`. Icon and
+-- tooltip are pulled fresh on each refresh so they track the current macro
+-- body (which auto-rewrites as bags change).
 
 local Type, Version = "KCMMacroDragIcon", 1
 local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
