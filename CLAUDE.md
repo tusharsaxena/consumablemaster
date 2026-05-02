@@ -158,7 +158,7 @@ Run `/cm dump item <id>` to see the subType + parsed tooltip. If subType is wron
 - **Ship functional, defer polish.** The user has explicitly said: when core functionality lands, move on — don't stop to polish UX mid-milestone. Revisit polish later as a dedicated pass.
 - Don't add comments that explain *what* well-named code does. Only add a comment when the *why* is non-obvious (subtle invariant, workaround for a specific Blizzard quirk, a hidden constraint).
 - Don't create docs or planning files unless asked.
-- **Never auto-commit or auto-push.** The user chooses when to `git commit` and `git push`. Even after finishing a coherent change, do not run `git commit` unless the user has explicitly asked for it in the current request. Offering to commit at the end of a turn is fine; running the commit yourself is not.
+- **Never auto-stage, auto-commit, or auto-push.** The user chooses when to `git add`, `git commit`, and `git push`. Even after finishing a coherent change, do not run any of these unless the user has explicitly asked for it in the current request. This includes `git add <file>`, `git add -A`, `git add -p`, `git add --renormalize`, `git stash`, or any other index-mutating command. Editing files on disk is fine; touching the git index is not. Offering to stage/commit at the end of a turn is fine; doing it yourself is not.
 - **Never bump the version without an explicit instruction.** Do not edit `KCM.VERSION` in `Core.lua`, `## Version:` in `ConsumableMaster.toc`, the version badge / inline version in `README.md`, or add a changelog entry, unless the user has explicitly asked for a version bump in the current request. Releases are the user's call, not a side effect of finishing a feature.
 
 ---

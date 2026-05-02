@@ -1,0 +1,28 @@
+# Enforce CRLF line endings in the working tree on every platform.
+#
+# `text=auto` lets git detect text files; `eol=crlf` forces those files to
+# CRLF on checkout regardless of the contributor's `core.autocrlf` setting.
+# Files are normalized to LF in the repository, so diffs/blame stay clean.
+#
+# After modifying this file, run `git add --renormalize .` to rewrite the
+# index with the new attributes. Existing working-tree files keep their
+# on-disk bytes; only the index is updated.
+
+* text=auto eol=crlf
+
+# Binary files — preserve bytes verbatim, no eol munging.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.bmp   binary
+*.ico   binary
+*.tga   binary
+*.blp   binary
+*.pdf   binary
+*.zip   binary
+*.tar   binary
+*.gz    binary
+*.7z    binary
+*.ttf   binary
+*.otf   binary
