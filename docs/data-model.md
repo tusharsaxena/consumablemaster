@@ -9,6 +9,7 @@ AceDB schema, the opaque-numeric ID convention, the composite-bucket shape, and 
 ```
 db.profile
 ├── schemaVersion        1
+├── enabled              boolean    -- master enable; gates Pipeline.Recompute
 ├── debug                boolean
 ├── categories
 │   ├── FOOD  │ DRINK │ HP_POT │ MP_POT │ HS    ← single-pick, non-spec-aware

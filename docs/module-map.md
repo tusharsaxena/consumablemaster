@@ -61,7 +61,7 @@ settings/         Settings UI framework + per-tab modules.
 │                        Settings.Schema + Helpers; publishes the KCM.Options
 │                        shim. About content is rendered here on the parent
 │                        canvas.
-├── General.lua          Diagnostics / Maintenance / Reset sections.
+├── General.lua          Paired [Enable]|[Debug] + Maintenance section.
 ├── StatPriority.lua     Spec selector + paired Primary / Secondary 1-4.
 └── Category.lua         One tab per Categories.LIST entry; dispatches to
                           single (Add-by-ID + Priority list) or composite

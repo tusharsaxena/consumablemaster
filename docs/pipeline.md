@@ -10,6 +10,10 @@ event ──▶ RequestRecompute(reason)
             │  multiple events in the same frame collapse to one run
             ▼
           Recompute(reason)
+            │  if db.profile.enabled == false:
+            │      Debug.Print("skipped (disabled)")     -- master enable gate
+            │      return                                -- no-op; macros keep
+            │                                            -- last-written body
             │  scoreCache = { fields = {} }              -- fresh per pass
             │  for each cat in Categories.LIST:
             │      pcall(RecomputeOne, cat.key, scoreCache, reason)

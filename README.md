@@ -74,7 +74,15 @@ Settings live at **Escape → Options → AddOns → Consumable Master** (or `/c
 
 **General**
 
+Two sections, top to bottom.
+
+*General*
+
+*   **Enable** — master toggle. When off, the recompute pipeline is a no-op: macros keep their last-written body and stop updating with bag / spec / combat events. Toggle back on and macros refresh against current state immediately. Persists in saved variables.
 *   **Debug mode** — toggle verbose chat logging. Equivalent to `/cm debug`.
+
+*Maintenance*
+
 *   **Force resync** — invalidate the tooltip cache, re-run auto-discovery against your bags, and recompute every category's pick. Macros are re-issued only when the pick or body actually changes. Equivalent to `/cm resync`. Blocked in combat.
 *   **Force rewrite macros** — unconditionally re-issue every `KCM_*` macro (body + stored icon), bypassing the "unchanged" cache. Use when an action-bar icon looks stale (e.g. ElvUI held the previous static texture across an upgrade). Equivalent to `/cm rewritemacros`. Blocked in combat. A `/reload` afterwards guarantees the action-bar framework re-queries every button.
 *   **Reset all priorities** — with confirmation, wipe every added / blocked / pinned entry and every stat-priority override. Seed defaults are restored.

@@ -54,7 +54,7 @@ Adding a new scalar = one schema row. Row shape:
 
 ```lua
 Schema[#Schema + 1] = {
-    panel    = "general", section = "general", group = "Diagnostics",
+    panel    = "general", section = "general", group = "General",
     path     = "debug",   type    = "bool",
     label    = "Debug mode",
     tooltip  = "Print per-event diagnostics to chat. Same as /cm debug.",
@@ -63,7 +63,7 @@ Schema[#Schema + 1] = {
 }
 ```
 
-`Helpers.ValidateSchema()` lints rows at register-time and prints malformed entries to chat without blocking registration. The schema is the *capacity* for future scalars; today only `general.debug` is wired in.
+`Helpers.ValidateSchema()` lints rows at register-time and prints malformed entries to chat without blocking registration. Two rows are wired today: `general.enabled` (master toggle; Pipeline.Recompute early-returns when off, and the row's `onChange` kicks `RequestRecompute` on the off→on transition so macros refresh immediately) and `general.debug` (verbose chat logging via `KCM.Debug.Print`).
 
 ## List-shaped state — verb namespaces
 
