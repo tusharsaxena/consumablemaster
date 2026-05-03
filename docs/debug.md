@@ -4,7 +4,7 @@ The toggle, the dump targets, and the schema-driven slash CLI. All chat output i
 
 ## Toggle verbose logging
 
-`/cm debug` flips `KCM.db.profile.debug`. Internally it routes through `Settings.Helpers.SetAndRefresh("debug", next)` so the panel checkbox, `/cm debug`, and `/cm set debug true|false` all share one write+notify+refresh path. Calls to `KCM.Debug.Print(fmt, ...)` early-return when the flag is off, so unconditional calls are safe.
+`/cm debug` flips `KCM.db.profile.debug`. Internally it routes through `Settings.Helpers.SetAndRefresh("debug", nextValue)` so the panel checkbox, `/cm debug`, and `/cm set debug true|false` all share one write+notify+refresh path. Calls to `KCM.Debug.Print(fmt, ...)` early-return when the flag is off, so unconditional calls are safe.
 
 `Debug.lua` is the only sanctioned chokepoint for gated logging:
 
@@ -63,7 +63,7 @@ Schema[#Schema + 1] = {
 }
 ```
 
-`Helpers.ValidateSchema()` lints rows at register-time and prints malformed entries to chat without blocking registration. Two rows are wired today: `general.enabled` (master toggle; Pipeline.Recompute early-returns when off, and the row's `onChange` kicks `RequestRecompute` on the off→on transition so macros refresh immediately) and `general.debug` (verbose chat logging via `KCM.Debug.Print`).
+`Helpers.ValidateSchema()` lints rows at register-time and prints malformed entries to chat without blocking registration. Two rows are wired today: `general.enabled` (master toggle; `Pipeline.Recompute` skips its macro write loop when off but still fires the panel refresh so `[Loading]` rows hydrate, and the row's `onChange` kicks `RequestRecompute` on the off→on transition so macros refresh immediately) and `general.debug` (verbose chat logging via `KCM.Debug.Print`).
 
 ## List-shaped state — verb namespaces
 

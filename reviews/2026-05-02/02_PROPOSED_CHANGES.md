@@ -1,7 +1,7 @@
 # Proposed Changes — Ka0s Consumable Master
 
 **Date:** 2026-05-02
-**Companion to:** `REVIEW_FINDINGS.md` (this file maps each finding to a concrete change).
+**Companion to:** `01_FINDINGS.md` (this file maps each finding to a concrete change).
 
 ---
 

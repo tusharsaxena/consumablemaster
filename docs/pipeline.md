@@ -10,21 +10,24 @@ event ──▶ RequestRecompute(reason)
             │  multiple events in the same frame collapse to one run
             ▼
           Recompute(reason)
-            │  if db.profile.enabled == false:
-            │      Debug.Print("skipped (disabled)")     -- master enable gate
-            │      return                                -- no-op; macros keep
-            │                                            -- last-written body
-            │  scoreCache = { fields = {} }              -- fresh per pass
-            │  for each cat in Categories.LIST:
-            │      pcall(RecomputeOne, cat.key, scoreCache, reason)
-            │         if cat.composite:
-            │             MacroManager.SetCompositeMacro(cat, scoreCache)
-            │             (resolves each enabled ref via
-            │              Selector.PickBestForCategory under the hood)
-            │         else:
-            │             pick = Selector.PickBestForCategory(cat.key, nil, scoreCache)
-            │             MacroManager.SetMacro(cat.macroName, pick, cat.key)
-            │  Options.RequestRefresh()                  -- debounced panel rebuild
+            │  enabled = db.profile.enabled ~= false
+            │  if enabled:
+            │      scoreCache = { fields = {} }          -- fresh per pass
+            │      for each cat in Categories.LIST:
+            │          pcall(RecomputeOne, cat.key, scoreCache, reason)
+            │             if cat.composite:
+            │                 MacroManager.SetCompositeMacro(cat, scoreCache)
+            │                 (resolves each enabled ref via
+            │                  Selector.PickBestForCategory under the hood)
+            │             else:
+            │                 pick = Selector.PickBestForCategory(cat.key, nil, scoreCache)
+            │                 MacroManager.SetMacro(cat.macroName, pick, cat.key)
+            │  else:
+            │      Debug.Print("skipped writes (disabled)")  -- macros keep
+            │                                                -- last-written body
+            │  Options.RequestRefresh()                  -- always: panel rebuild
+            │                                            -- still hydrates [Loading]
+            │                                            -- rows while addon is off
             ▼
           per-category:
               Selector.GetEffectivePriority(catKey, specKey, scoreCache)

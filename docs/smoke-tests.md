@@ -108,7 +108,7 @@ Tests: `/cm config` lands on About with sub-pages expanded; General-page checkbo
 2. Expect: lands on the **Ka0s Consumable Master** parent page (logo + tagline + slash help). Left sidebar has the parent expanded with all 12 sub-pages visible (General, Stat Priority, 8 categories, 2 AIO).
 3. Manually collapse the parent in the sidebar. Run `/cm config` again. Sidebar re-expands.
 4. Open General. Layout: section "General" with paired `[Enable] | [Debug]`; section "Maintenance" with row 1 `[Force resync | Force rewrite]`, row 2 `[Reset all priorities]` full-width.
-5. Toggle Enable off — `[CM] Master enable OFF` prints. `/cm dump pick food` shows the Pipeline.Recompute "skipped (disabled)" debug line if debug is on.
+5. Toggle Enable off — `[CM] Master enable OFF` prints. `/cm dump pick food` shows the `Pipeline.Recompute skipped writes (disabled)` debug line if debug is on. The panel still refreshes (so `[Loading]` rows hydrate) but no macro is rewritten.
 6. Toggle Enable on — `[CM] Master enable ON` prints. A recompute kicks immediately; macros refresh against current state.
 7. Toggle Debug — `[CM] Debug mode ON` / `OFF`. `KCM.Debug.Print` lines start / stop appearing.
 8. Click **Force resync** — TooltipCache invalidates, auto-discovery re-runs, pipeline recomputes. Blocked in combat with a chat notice.

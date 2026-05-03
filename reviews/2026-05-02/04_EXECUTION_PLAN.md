@@ -1,7 +1,7 @@
 # Execution Plan — Ka0s Consumable Master review
 
 **Date:** 2026-05-02
-**Companion to:** `REVIEW_FINDINGS.md`, `REVIEW_PROPOSED_CHANGES.md`.
+**Companion to:** `01_FINDINGS.md`, `02_PROPOSED_CHANGES.md`.
 
 This plan sequences the LLD tasks for an agent-team execution. Each task names its files, its findings/LLD coverage, and its serialization vs parallelization profile. Each milestone has a clear "done when" exit criterion.
 

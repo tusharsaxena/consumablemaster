@@ -83,7 +83,7 @@ KCM*.lua         AceGUI custom widgets. Loaded before settings/ so that
 
 ```lua
 -- Lifecycle
-KCM:OnInitialize()                           -- AceDB, slash registration, Options register
+KCM:OnInitialize()                           -- AceDB + slash registration; panel registration is driven by the bootstrap listener in settings/Panel.lua
 KCM:OnEnable()                               -- event subscriptions
 
 -- Pipeline (also see pipeline.md)
