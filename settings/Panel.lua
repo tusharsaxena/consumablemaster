@@ -224,6 +224,18 @@ end
 function Helpers.SetRenderer(ctx, fn)
     ctx._renderFn = fn
     ctx.panel:SetScript("OnShow", function()
+        -- Block any KCM panel from opening during combat. The Blizzard
+        -- AddOns sidebar bypasses O.Open's guard, so this catches both
+        -- the slash path and a direct sidebar click.
+        if InCombatLockdown and InCombatLockdown() then
+            if SettingsPanel and SettingsPanel.Close then
+                SettingsPanel:Close()
+            elseif HideUIPanel and SettingsPanel then
+                HideUIPanel(SettingsPanel)
+            end
+            print("|cff00ffff[CM]|r cannot open settings during combat. Try again after combat ends.")
+            return
+        end
         if ctx._rendered then return end
         ctx._rendered = true
         if ctx._renderFn then ctx._renderFn(ctx) end

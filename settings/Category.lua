@@ -34,9 +34,10 @@ O._addKind = O._addKind or {}
 -- 32px square buttons cluster on the right. Tuned for the standard Settings
 -- sub-panel content width (~540px); narrower windows still fit because the
 -- buttons remain pixel-fixed and the item row is relative.
-local ITEM_ROW_RW   = 0.72
-local ROW_BTN_W     = 32
-local CHECK_W       = 90
+local ITEM_ROW_RW_SINGLE    = 0.76
+local ITEM_ROW_RW_COMPOSITE = 0.72
+local ROW_BTN_W             = 32
+local CHECK_W               = 78
 
 local OWNED_ICON     = "|TInterface\\RaidFrame\\ReadyCheck-Ready:20|t"
 local NOT_OWNED_ICON = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:20|t"
@@ -200,9 +201,9 @@ local function makeScoreBtn(parent, opts)
     return btn
 end
 
-local function makeItemRow(parent, data)
+local function makeItemRow(parent, data, rw)
     local row = AceGUI:Create("KCMItemRow")
-    row:SetRelativeWidth(ITEM_ROW_RW)
+    row:SetRelativeWidth(rw or ITEM_ROW_RW_SINGLE)
     row:SetCustomData(data)
     parent:AddChild(row)
     return row
@@ -389,7 +390,7 @@ local function renderSingle(ctx, cat)
                     itemID = rowID,
                     owned  = isOwned(rowID),
                     isPick = (pick and rowID == pick) and true or false,
-                })
+                }, ITEM_ROW_RW_SINGLE)
                 makeScoreBtn(row, {
                     image   = "Interface\\FriendsFrame\\InformationIcon",
                     label   = scoreTitle,
@@ -505,7 +506,7 @@ local function renderComposite(ctx, cat)
                     owned        = isOwned(pick),
                     isPick       = false,
                     fallbackName = refLabel,
-                })
+                }, ITEM_ROW_RW_COMPOSITE)
                 makeCheckbox(row, {
                     label    = "Enabled",
                     tooltip  = ("Include %s in the macro body."):format(refLabel),
