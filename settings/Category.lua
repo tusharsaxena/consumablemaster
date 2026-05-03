@@ -34,9 +34,9 @@ O._addKind = O._addKind or {}
 -- 32px square buttons cluster on the right. Tuned for the standard Settings
 -- sub-panel content width (~540px); narrower windows still fit because the
 -- buttons remain pixel-fixed and the item row is relative.
-local ITEM_ROW_RW   = 0.62
+local ITEM_ROW_RW   = 0.72
 local ROW_BTN_W     = 32
-local CHECK_W       = 60
+local CHECK_W       = 90
 
 local OWNED_ICON     = "|TInterface\\RaidFrame\\ReadyCheck-Ready:20|t"
 local NOT_OWNED_ICON = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:20|t"
