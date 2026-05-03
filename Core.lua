@@ -5,7 +5,7 @@ local ADDON_NAME = "ConsumableMaster"
 local KCM = LibStub("AceAddon-3.0"):NewAddon(ADDON_NAME, "AceEvent-3.0", "AceConsole-3.0")
 _G.KCM = KCM
 
-KCM.VERSION = "1.3.0"
+KCM.VERSION = "1.4.0"
 
 -- Priority-list entries are opaque numeric IDs. Positive = itemID; negative
 -- is a spell-sentinel whose absolute value is the spellID. Using a disjoint
