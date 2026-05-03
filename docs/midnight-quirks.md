@@ -91,7 +91,7 @@ end
 
 Call it AFTER `Settings.OpenToCategory` so `SettingsPanel` is realized and the entry element exists. Re-running on every `KCM.Options.Open` means a manual mid-session collapse doesn't stick across the next `/cm config`.
 
-The Settings panel is protected during combat (`InCombatLockdown()` blocks `Settings.OpenToCategory`); guard with an early-return + chat notice rather than letting it silently fail.
+The Settings panel is protected during combat (`InCombatLockdown()` blocks `Settings.OpenToCategory`). Two guards cover both entry points: `KCM.Options.Open` early-returns with a chat notice (covers `/cm` and `/cm config`), and `Helpers.SetRenderer`'s panel `OnShow` callback closes `SettingsPanel` and prints the same notice when a panel is shown during combat (covers a direct ESC → AddOns sidebar click that bypasses `O.Open`).
 
 ## `LEARNED_SPELL_IN_TAB` removed in retail
 
