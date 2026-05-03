@@ -80,7 +80,17 @@ local function formatNumber(n)
     local isWhole = (n == math.floor(n))
     local abs = math.abs(n)
     local body = isWhole and tostring(math.floor(abs)) or ("%.1f"):format(abs)
-    local sepd = body:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    local int, rest = body:match("^(%d+)(.*)$")
+    if not int then return tostring(n) end
+    -- Walk the integer part forward in 3-digit groups so we don't need to
+    -- reverse the string. The first group is shorter when len % 3 ~= 0.
+    local len = #int
+    local first = ((len - 1) % 3) + 1
+    local pieces = { int:sub(1, first) }
+    for i = first + 1, len, 3 do
+        pieces[#pieces + 1] = int:sub(i, i + 2)
+    end
+    local sepd = table.concat(pieces, ",") .. (rest or "")
     return (n < 0) and ("-" .. sepd) or sepd
 end
 

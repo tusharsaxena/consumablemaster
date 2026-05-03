@@ -185,7 +185,7 @@ KCM.SpecHelper.GetStatPriority(specKey) -> { primary, secondary = { ... } }
 
 ```lua
 -- Lifecycle (preserved API; called by Core / Debug / SlashCommands / Pipeline)
-KCM.Options.Register()       -- one-time, called from Core:OnInitialize
+KCM.Options.Register()       -- one-time; auto-runs from PLAYER_LOGIN / ADDON_LOADED bootstrap
 KCM.Options.Open()           -- opens panel directly to General
 
 -- Refresh

@@ -64,9 +64,10 @@ function KCM:OnInitialize()
     self.db = LibStub("AceDB-3.0"):New("ConsumableMasterDB", KCM.dbDefaults, true)
     self:RegisterChatCommand("cm", "OnSlashCommand")
     self:RegisterChatCommand("consumablemaster", "OnSlashCommand")
-    if KCM.Options and KCM.Options.Register then
-        KCM.Options.Register()
-    end
+    -- Panel registration is driven by the PLAYER_LOGIN / ADDON_LOADED
+    -- bootstrap in settings/Panel.lua. AceAddon OnInitialize runs before
+    -- PLAYER_LOGIN, so Settings.RegisterAddOnCategory may not be ready
+    -- here on every client build — relying on the bootstrap is more robust.
     if KCM.Debug and KCM.Debug.Print then
         KCM.Debug.Print("Initialized (version %s, debug=%s)", KCM.VERSION, tostring(self.db.profile.debug))
     end
@@ -115,32 +116,31 @@ end
 
 function P.Recompute(reason)
     if not KCM.Categories or not KCM.Categories.LIST then return end
-    -- Master enable. When off, every recompute path is a no-op — including
-    -- /cm resync and /cm rewritemacros, which both flow through here. Macros
-    -- keep their last-written body, which is the right "addon is off" UX:
-    -- the user disabled deliberately and expects nothing to change until
-    -- they re-enable. The toggle's onChange in settings/Panel.lua kicks
-    -- a recompute on the off→on transition so macros refresh immediately.
-    if KCM.db and KCM.db.profile and KCM.db.profile.enabled == false then
-        if KCM.Debug and KCM.Debug.Print then
-            KCM.Debug.Print("Pipeline.Recompute skipped (disabled): reason=%s", tostring(reason))
+    -- Master enable gates only the macro write loop. The panel refresh
+    -- below still runs so that opening the panel while the addon is off
+    -- hydrates priority-list rows from item-info events (otherwise rows
+    -- whose data hadn't loaded sit on `[Loading]` until re-enable). Macros
+    -- keep their last-written body until the off→on transition kicks a
+    -- recompute via the toggle's onChange in settings/Panel.lua.
+    local enabled = not (KCM.db and KCM.db.profile and KCM.db.profile.enabled == false)
+    if enabled then
+        -- Per-pass score cache. `fields[id]` memoizes GetItemInfo +
+        -- TooltipCache.Get so items appearing across multiple categories
+        -- (pot HOT scans, overlapping seeds) don't re-parse tooltips.
+        -- `[catKey][id]` memoizes the per-category score. Passing nil (as
+        -- /cm dump / panel renders do) falls back to the uncached path.
+        local scoreCache = { fields = {} }
+        for _, cat in ipairs(KCM.Categories.LIST) do
+            -- Isolate each category so one bad scorer can't break the
+            -- other seven macros. One pcall per category per recompute
+            -- (8 per frame at peak) is cheap.
+            local ok, err = pcall(P.RecomputeOne, cat.key, scoreCache, reason)
+            if not ok and KCM.Debug and KCM.Debug.Print then
+                KCM.Debug.Print("Recompute %s failed: %s", cat.key, tostring(err))
+            end
         end
-        return
-    end
-    -- Per-pass score cache. `fields[id]` memoizes GetItemInfo +
-    -- TooltipCache.Get so items appearing across multiple categories (pot
-    -- HOT scans, overlapping seeds) don't re-parse tooltips. `[catKey][id]`
-    -- memoizes the per-category score. Passing nil (as /cm dump / panel
-    -- renders do) falls back to the uncached path.
-    local scoreCache = { fields = {} }
-    for _, cat in ipairs(KCM.Categories.LIST) do
-        -- Isolate each category so one bad scorer can't break the other
-        -- seven macros. One pcall per category per recompute (8 per frame
-        -- at peak) is cheap.
-        local ok, err = pcall(P.RecomputeOne, cat.key, scoreCache, reason)
-        if not ok and KCM.Debug and KCM.Debug.Print then
-            KCM.Debug.Print("Recompute %s failed: %s", cat.key, tostring(err))
-        end
+    elseif KCM.Debug and KCM.Debug.Print then
+        KCM.Debug.Print("Pipeline.Recompute skipped writes (disabled): reason=%s", tostring(reason))
     end
     -- Event-driven panel updates go through the debounced RequestRefresh so
     -- that a burst of GET_ITEM_INFO_RECEIVED events (dozens during first
@@ -253,9 +253,16 @@ KCM.Pipeline.DiscoverOne      = discoverOne
 -- tooltip cache invalidation, auto-discovery pass, then an immediate
 -- Recompute. The cache invalidation clears any stale `pending` entries
 -- from the prior session, auto-discovery re-fills the `discovered` set
--- which we just wiped, and Recompute rewrites every macro body. Macro
--- writes that land in combat defer via MacroManager's pending queue, so
--- this is safe to run without a combat guard.
+-- which we just wiped, and Recompute rewrites every macro body.
+--
+-- Why Recompute (immediate) and not RequestRecompute (next-frame): the user
+-- just clicked "reset" and expects the panel and macros to refresh now. The
+-- combat-guard contract is upheld transitively — Recompute → MacroManager,
+-- and MacroManager.SetMacro / SetCompositeMacro are the only protected-API
+-- callers and they early-out on InCombatLockdown(), enqueuing the write for
+-- PLAYER_REGEN_ENABLED to flush. If a future module ever calls a protected
+-- API outside MacroManager, this path becomes a taint hazard and the choice
+-- of immediate-vs-deferred recompute would need to be re-evaluated.
 --
 -- Returns true if the DB was mutated; callers that want user feedback
 -- should print their own confirmation message.
@@ -296,6 +303,15 @@ end
 
 function KCM:OnSpecChanged()
     KCM.Pipeline.RequestRecompute("spec_changed")
+    -- If the Stat Priority page is auto-tracking the current spec (the
+    -- default), retrack to the new spec so the panel rebuilds against the
+    -- spec the player just respecced into. Manual pins (set by picking a
+    -- spec from the dropdown) are left alone.
+    if KCM.Options and KCM.Options._viewedSpecAuto and KCM.SpecHelper
+            and KCM.SpecHelper.GetCurrent then
+        local _, _, key = KCM.SpecHelper.GetCurrent()
+        if key then KCM.Options._viewedSpec = key end
+    end
 end
 
 function KCM:OnRegenEnabled()

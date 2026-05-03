@@ -281,10 +281,23 @@ end
 -- produced.
 function R.BuildContext(catKey, itemIDs, existing, scoreCache)
     local ctx = existing or {}
-    if catKey == "HP_POT" then
-        ctx.bestImmediateAmount = bestImmediateAmount("HP", itemIDs, scoreCache)
-    elseif catKey == "MP_POT" then
-        ctx.bestImmediateAmount = bestImmediateAmount("MP", itemIDs, scoreCache)
+    if catKey == "HP_POT" or catKey == "MP_POT" then
+        local kind = (catKey == "HP_POT") and "HP" or "MP"
+        -- Memoize on the per-pass scoreCache so per-row Explain calls don't
+        -- redo the walk during a panel render. SortCandidates and Explain
+        -- both flow through here for the same catKey + itemIDs in a single
+        -- recompute, and the result is identical across the calls.
+        if scoreCache then
+            scoreCache.bestImmediate = scoreCache.bestImmediate or {}
+            local cached = scoreCache.bestImmediate[catKey]
+            if cached == nil then
+                cached = bestImmediateAmount(kind, itemIDs, scoreCache)
+                scoreCache.bestImmediate[catKey] = cached
+            end
+            ctx.bestImmediateAmount = cached
+        else
+            ctx.bestImmediateAmount = bestImmediateAmount(kind, itemIDs, scoreCache)
+        end
     end
     return ctx
 end

@@ -22,6 +22,10 @@ local AceGUI = LibStub("AceGUI-3.0")
 KCM.Options = KCM.Options or {}
 local O = KCM.Options
 O._viewedSpec = O._viewedSpec or nil
+-- True while _viewedSpec is auto-tracking the player's current spec; flipped
+-- false when the user manually picks a spec from the dropdown so an explicit
+-- pin survives respec. Re-armed only by the auto-resolve path.
+if O._viewedSpecAuto == nil then O._viewedSpecAuto = true end
 
 local PRIMARY_OPTIONS   = { STR = "Strength", AGI = "Agility", INT = "Intellect" }
 local PRIMARY_SORTING   = { "STR", "AGI", "INT" }
@@ -43,10 +47,15 @@ local function currentSpecKey()
 end
 
 local function resolveViewedSpec()
-    if O._viewedSpec then return O._viewedSpec end
+    -- When the user has pinned a spec manually, honor the pin even after respec.
+    -- Otherwise, follow the player's current spec so the page tracks live state.
+    if O._viewedSpec and not O._viewedSpecAuto then return O._viewedSpec end
     local cur = currentSpecKey()
-    O._viewedSpec = cur
-    return cur
+    if cur then
+        O._viewedSpec = cur
+        O._viewedSpecAuto = true
+    end
+    return O._viewedSpec
 end
 O.ResolveViewedSpec = resolveViewedSpec
 
@@ -113,9 +122,14 @@ local function writeStatPriority(specKey, mutate)
     if not specKey or not (KCM.db and KCM.db.profile) then return false end
     local cur = readStatPriority(specKey)
     mutate(cur)
-    local compacted = {}
+    -- Drop empties and duplicates while preserving first-seen order. A
+    -- duplicate would otherwise weight the same stat twice in Ranker.Score.
+    local compacted, seen = {}, {}
     for _, s in ipairs(cur.secondary) do
-        if s and s ~= "" then table.insert(compacted, s) end
+        if s and s ~= "" and not seen[s] then
+            seen[s] = true
+            table.insert(compacted, s)
+        end
     end
     KCM.db.profile.statPriority = KCM.db.profile.statPriority or {}
     KCM.db.profile.statPriority[specKey] = {
@@ -190,7 +204,7 @@ local function render(ctx)
         value   = O._viewedSpec,
         onChange = function(v)
             O._viewedSpec = v
-            specLabelCache[v] = nil  -- icon fileID may have changed across logins
+            O._viewedSpecAuto = (v == currentSpecKey())
             H.RefreshAllPanels()
         end,
     })

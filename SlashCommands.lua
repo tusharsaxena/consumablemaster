@@ -896,15 +896,19 @@ local function statSecondary(rest)
     end
     local specKey = resolveSpecKey(args[2])
     if not specKey then return say("could not resolve spec.") end
-    local list, bad = {}, {}
+    local list, seen, bad = {}, {}, {}
     for token in (args[1]):gmatch("[^,]+") do
         local up = trim(token):upper()
         if up == "" then
             -- skip empty CSV slots
-        elseif SECONDARY_STATS[up] then
-            list[#list + 1] = up
-        else
+        elseif not SECONDARY_STATS[up] then
             bad[#bad + 1] = up
+        elseif not seen[up] then
+            -- Dedupe: a duplicate would weight the same stat twice in
+            -- Ranker.Score. First occurrence wins; later duplicates are
+            -- silently dropped.
+            seen[up] = true
+            list[#list + 1] = up
         end
     end
     if #bad > 0 then
