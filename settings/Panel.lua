@@ -161,11 +161,15 @@ Helpers.AttachTooltip = attachTooltip
 
 local function buildHeader(panel, title, opts)
     -- Sub-pages render with an addon-name breadcrumb prefix so the header
-    -- reads as "Ka0s Consumable Master  |  <Page>". The parent (About)
-    -- opts in to the unprefixed form via opts.isMain.
+    -- reads as "Ka0s Consumable Master  ›  <Page>". The separator is an
+    -- inline atlas (|A:...|a) rather than a font glyph, so it renders the
+    -- same regardless of the FontString font or locale fallback. Parent
+    -- (About) opts in to the unprefixed form via opts.isMain — the
+    -- Blizzard left-tree label (panel.name) is never prefixed.
+    local sep = " |A:common-icon-forwardarrow:16:16|a "
     local displayTitle = title
     if not opts.isMain then
-        displayTitle = PANEL_TITLE .. "  |  " .. title
+        displayTitle = PANEL_TITLE .. sep .. title
     end
 
     local titleFS = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
