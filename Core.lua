@@ -298,12 +298,7 @@ function KCM:OnSpecChanged()
     KCM.Pipeline.RequestRecompute("spec_changed")
 end
 
-function KCM:OnRegenDisabled()
-    KCM._inCombat = true
-end
-
 function KCM:OnRegenEnabled()
-    KCM._inCombat = false
     if KCM.MacroManager and KCM.MacroManager.FlushPending then
         local n = KCM.MacroManager.FlushPending()
         if n > 0 and KCM.Debug and KCM.Debug.Print then
@@ -345,7 +340,6 @@ function KCM:OnEnable()
     self:RegisterEvent("PLAYER_ENTERING_WORLD",         "OnPlayerEnteringWorld")
     self:RegisterEvent("BAG_UPDATE_DELAYED",            "OnBagUpdateDelayed")
     self:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED", "OnSpecChanged")
-    self:RegisterEvent("PLAYER_REGEN_DISABLED",         "OnRegenDisabled")
     self:RegisterEvent("PLAYER_REGEN_ENABLED",          "OnRegenEnabled")
     self:RegisterEvent("GET_ITEM_INFO_RECEIVED",        "OnItemInfoReceived")
     self:RegisterEvent("LEARNED_SPELL_IN_SKILL_LINE",   "OnLearnedSpell")

@@ -600,7 +600,9 @@ local function applyFromText(def, text)
     else
         return fail("unknown setting type '" .. tostring(def.type) .. "'")
     end
-    H.SetAndRefresh(def.path, newValue)
+    if not H.SetAndRefresh(def.path, newValue) then
+        return say(("could not set %s — DB not ready?"):format(def.path))
+    end
     say(("%s = %s"):format(def.path, formatValue(def, H.Get(def.path))))
 end
 
@@ -793,7 +795,7 @@ local function priorityReset(cat)
     bucket.added   = {}
     bucket.blocked = {}
     bucket.pins    = {}
-    say(("reset %s%s — added/blocked/pins cleared.")
+    say(("reset %s%s — added/blocked/pins cleared (discovered items preserved).")
         :format(cat.key, cat.specAware and (" (spec " .. tostring(specKey) .. ")") or ""))
     afterMutation("slash_priority_reset")
 end
@@ -1156,7 +1158,7 @@ local COMMANDS = {
     {"resync",        "Force macros to resync from bags",
         function()
             if InCombatLockdown and InCombatLockdown() then
-                say("in combat — macro writes deferred until regen.")
+                say("in combat — picks computed now; macro writes will apply when combat ends.")
             end
             if KCM.TooltipCache and KCM.TooltipCache.InvalidateAll then
                 KCM.TooltipCache.InvalidateAll()
@@ -1173,7 +1175,7 @@ local COMMANDS = {
     {"rewritemacros", "Force a full rewrite of every KCM macro (icon + body)",
         function()
             if InCombatLockdown and InCombatLockdown() then
-                say("in combat — macro writes deferred until regen.")
+                say("in combat — picks computed now; macro writes will apply when combat ends.")
             end
             if KCM.MacroManager and KCM.MacroManager.InvalidateState then
                 KCM.MacroManager.InvalidateState()

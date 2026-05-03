@@ -109,13 +109,6 @@ end
 local cache = {}
 local pendingIDs = {}
 
-function TC.IsPending(itemID)
-    local e = cache[itemID]
-    return e and e.pending == true or false
-end
-
-function TC.PendingIDs() return pendingIDs end
-
 function TC.Invalidate(itemID)
     cache[itemID] = nil
     pendingIDs[itemID] = nil
@@ -358,13 +351,4 @@ function TC.IsUsableByPlayer(itemID)
         return false, ("level %d < %d"):format(have, need)
     end
     return true, nil
-end
-
-function TC.Stats()
-    local total, pending = 0, 0
-    for _, e in pairs(cache) do
-        total = total + 1
-        if e.pending then pending = pending + 1 end
-    end
-    return { total = total, pending = pending }
 end

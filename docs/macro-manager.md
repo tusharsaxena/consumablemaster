@@ -8,8 +8,6 @@ The only module that calls Blizzard's protected macro APIs (`CreateMacro` / `Edi
 KCM.MacroManager.SetMacro(macroName, id, catKey)         -> "created" | "edited" | "unchanged" | "deferred" | "error"
 KCM.MacroManager.SetCompositeMacro(cat, scoreCache)      -> same result codes
 KCM.MacroManager.FlushPending()                          -> applied:int    -- on PLAYER_REGEN_ENABLED
-KCM.MacroManager.HasPending() / .PendingCount()
-KCM.MacroManager.IsAdopted(macroName)                    -> bool
 KCM.MacroManager.BuildBody(catKey, id)                   -> string         -- pure helper
 KCM.MacroManager.BuildCompositeBody(cat, pickFor)        -> string|nil     -- pure helper, exposed for /cm dump pick
 KCM.MacroManager.InvalidateState()                       -- clears macroState + pendingUpdates + oversize warnings

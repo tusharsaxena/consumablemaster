@@ -155,8 +155,11 @@ function C.MatchAny(itemID)
     if not itemID or not KCM.Categories or not KCM.Categories.LIST then
         return hits
     end
+    -- Composite categories (HP_AIO, MP_AIO) compose other categories' picks
+    -- and don't have matchers; skipping them avoids a wasted C.Match per
+    -- bag item per discovery pass.
     for _, cat in ipairs(KCM.Categories.LIST) do
-        if C.Match(cat.key, itemID) then
+        if not cat.composite and C.Match(cat.key, itemID) then
             table.insert(hits, cat.key)
         end
     end

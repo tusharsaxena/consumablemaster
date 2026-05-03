@@ -152,7 +152,6 @@ Per-category predicates are English-only against `subType` + parsed `tt`. The Mi
 ```lua
 KCM.BagScanner.Scan() -> { [itemID] = count }     -- one pass; counts locked items
 KCM.BagScanner.HasItem(itemID) -> bool, count     -- single C_Item.GetItemCount call
-KCM.BagScanner.GetAllItemIDs() -> { itemIDs }
 ```
 
 `HasItem` does not fall back to a full `Scan`. `C_Item.GetItemCount(id, false, false, true)` is trusted.
@@ -166,10 +165,7 @@ KCM.TooltipCache.Get(itemID) -> { healValue, healValueAvg, healOverSec,
                                   statBuffs = { {stat, amount}, ... } }
 KCM.TooltipCache.Invalidate(itemID)
 KCM.TooltipCache.InvalidateAll()
-KCM.TooltipCache.IsPending(itemID) -> bool
-KCM.TooltipCache.PendingIDs() -> { itemIDs }
 KCM.TooltipCache.IsUsableByPlayer(itemID) -> bool
-KCM.TooltipCache.Stats() -> { total, pending }
 ```
 
 If `C_TooltipInfo.GetItemByID` returns nil or empty, the cache marks the id `pending`. The first `GET_ITEM_INFO_RECEIVED` for that id invalidates the entry and triggers a recompute (for bag items only — see [pipeline.md GIIR split](./pipeline.md#giir-bagnon-bag-split)).
@@ -202,8 +198,7 @@ KCM.Settings.RegisterTab(key, builder)            -- per-tab module entry point
 KCM.Settings.order           -- { "general", "statpriority", "food", ..., "mp_aio" }
 KCM.Settings.Helpers.Resolve(path) -> parent, key
 KCM.Settings.Helpers.Get(path) -> value
-KCM.Settings.Helpers.Set(path, section, value) -> bool
-KCM.Settings.Helpers.SchemaForPanel(panelKey) -> { rows }
+KCM.Settings.Helpers.Set(path, value) -> bool
 KCM.Settings.Helpers.FindSchema(path) -> row | nil
 KCM.Settings.Helpers.ValidateSchema() -> errorCount
 KCM.Settings.Helpers.SetAndRefresh(path, value) -> bool   -- write + onChange + refresh
@@ -222,7 +217,6 @@ KCM.Settings.Helpers.ButtonPair(ctx, leftSpec, rightSpec)
 KCM.Settings.Helpers.Label(ctx, text, fontSize?)
 KCM.Settings.Helpers.AddSpacer(scroll, height)
 KCM.Settings.Helpers.AttachTooltip(widget, label, tooltip)
-KCM.Settings.Helpers.MakeCheckbox(ctx, def, parent?, relativeWidth?)
 KCM.Settings.Helpers.BuildAboutContent(ctx)             -- parent canvas content
 ```
 

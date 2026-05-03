@@ -73,26 +73,11 @@ function Helpers.Get(path)
     return parent[key]
 end
 
-function Helpers.FireConfigChanged(_section)
-    -- Stub. CM's central refresh is Pipeline.RequestRecompute (called via
-    -- panel afterMutation closures); kept so the API matches KickCD's and
-    -- live subscribers can be added later without changing call sites.
-end
-
-function Helpers.Set(path, section, value)
+function Helpers.Set(path, value)
     local parent, key = Helpers.Resolve(path)
     if not parent then return false end
     parent[key] = value
-    Helpers.FireConfigChanged(section)
     return true
-end
-
-function Helpers.SchemaForPanel(panelKey)
-    local out = {}
-    for _, def in ipairs(KCM.Settings.Schema) do
-        if def.panel == panelKey then out[#out + 1] = def end
-    end
-    return out
 end
 
 function Helpers.FindSchema(path)
@@ -458,7 +443,7 @@ local function makeCheckbox(ctx, def, parent, relativeWidth)
 
     cb:SetCallback("OnValueChanged", function(_, _, value)
         local v = value and true or false
-        Helpers.Set(def.path, def.section, v)
+        Helpers.Set(def.path, v)
         fireOnChange(def, v)
     end)
 
@@ -467,7 +452,6 @@ local function makeCheckbox(ctx, def, parent, relativeWidth)
     ctx.refreshers[#ctx.refreshers + 1] = refresh
     return cb
 end
-Helpers.MakeCheckbox = makeCheckbox
 
 function Helpers.RenderField(ctx, def, parent, relativeWidth)
     if def.type == "bool" then return makeCheckbox(ctx, def, parent, relativeWidth) end
@@ -562,7 +546,7 @@ end
 function Helpers.SetAndRefresh(path, value)
     local def = Helpers.FindSchema(path)
     if not def then return false end
-    if not Helpers.Set(def.path, def.section, value) then return false end
+    if not Helpers.Set(def.path, value) then return false end
     fireOnChange(def, value)
     Helpers.RefreshAllPanels()
     return true

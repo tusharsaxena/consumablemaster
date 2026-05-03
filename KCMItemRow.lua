@@ -107,11 +107,11 @@ local function applyLabelWidth(widget)
     if not frame then return end
     local w = frame.width or frame:GetWidth() or 0
     if w <= 0 then return end
-    local leftOffset = 20 + 4 + 22 + 4 -- ownedTex (OWNED_ICON_SIZE) + gap + itemTex (ICON_SIZE) + gap
+    local leftOffset = OWNED_ICON_SIZE + ICON_GAP + ICON_SIZE + ICON_GAP
     if widget.qualityTex and widget.qualityTex:IsShown() then
-        leftOffset = leftOffset + 14 + 1 -- QUALITY_SIZE + QUALITY_GAP
+        leftOffset = leftOffset + QUALITY_SIZE + QUALITY_GAP
     end
-    local rightOffset = 22 + 4 -- PICK_SIZE + ICON_GAP
+    local rightOffset = PICK_SIZE + ICON_GAP
     widget.label:SetWidth(math.max(20, w - leftOffset - rightOffset))
 end
 

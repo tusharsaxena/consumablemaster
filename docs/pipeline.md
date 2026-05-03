@@ -100,7 +100,6 @@ Wired in `Core:OnEnable`:
 | `PLAYER_ENTERING_WORLD` | `OnPlayerEnteringWorld` | Run `runAutoDiscovery`, then `Selector.SweepStaleDiscovered(time())`, then `RequestRecompute`. Sweep runs after discovery so bumped timestamps are seen, and before recompute so the cleaned-up set feeds the first pick. |
 | `BAG_UPDATE_DELAYED` | `OnBagUpdateDelayed` | `runAutoDiscovery` + `RequestRecompute`. |
 | `PLAYER_SPECIALIZATION_CHANGED` | `OnSpecChanged` | `RequestRecompute`. |
-| `PLAYER_REGEN_DISABLED` | `OnRegenDisabled` | Sets `KCM._inCombat = true`. |
 | `PLAYER_REGEN_ENABLED` | `OnRegenEnabled` | `MacroManager.FlushPending()` — applies queued combat-deferred writes. |
 | `GET_ITEM_INFO_RECEIVED` | `OnItemInfoReceived` | `TooltipCache.Invalidate(id)`, then split: bag items → `discoverOne` + `RequestRecompute`; non-bag items → `Options.RequestRefresh` only. See [GIIR bag/non-bag split](#giir-bagnon-bag-split). |
 | `LEARNED_SPELL_IN_SKILL_LINE` | `OnLearnedSpell` | `RequestRecompute("learned_spell")`. Closes the window where `spellNameFor()` returned nil because the spell book hadn't hydrated yet, but the spell becomes known later in the same session without a spec change or bag event. |
@@ -125,18 +124,16 @@ The retry exists because `Classifier.Match` returns false while a tooltip is pen
 ## Combat deferral
 
 ```
-PLAYER_REGEN_DISABLED: KCM._inCombat = true
 BAG_UPDATE_DELAYED in combat:
     runAutoDiscovery (pure)
     Pipeline.RequestRecompute("bag_update_delayed")
         → Recompute runs (Selector / Ranker / Classifier are pure)
         → MacroManager.SetMacro: InCombatLockdown() true → enqueue in pendingUpdates
 PLAYER_REGEN_ENABLED:
-    KCM._inCombat = false
     MacroManager.FlushPending()   -- bounded retries
 ```
 
-No protected API is called during combat. Selector, Ranker, Classifier, BagScanner, TooltipCache, SpecHelper are pure and combat-safe. Only `MacroManager.SetMacro` / `SetCompositeMacro` reach `EditMacro` / `CreateMacro`, and they early-out on `InCombatLockdown()`.
+No protected API is called during combat. Selector, Ranker, Classifier, BagScanner, TooltipCache, SpecHelper are pure and combat-safe. Only `MacroManager.SetMacro` / `SetCompositeMacro` reach `EditMacro` / `CreateMacro`, and they early-out on `InCombatLockdown()`. The combat gate is `InCombatLockdown()` itself — no separate flag.
 
 `pendingUpdates[macroName]` carries `{ body, itemID, catKey, attempts }` for single picks or `{ body, itemID=nil, catKey, cat, attempts }` for composites — composite entries carry `cat` so `FlushPending` can dispatch back to `SetCompositeMacro`. Last-write-wins: if the body changes again before `PLAYER_REGEN_ENABLED`, only the final version is applied. See [macro-manager.md](./macro-manager.md#flush-retry).
 

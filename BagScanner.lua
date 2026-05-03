@@ -54,14 +54,3 @@ function BS.HasItem(itemID)
     local count = C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID, false, false, true) or 0
     return count > 0, count
 end
-
--- Flat array of itemIDs currently in bags. Convenient for iteration; callers
--- needing counts should use Scan() directly.
-function BS.GetAllItemIDs()
-    local ids = {}
-    for id in pairs(BS.Scan()) do
-        table.insert(ids, id)
-    end
-    table.sort(ids)
-    return ids
-end

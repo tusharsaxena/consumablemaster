@@ -232,16 +232,6 @@ M.BuildCompositeBody = buildCompositeBody  -- exposed for /cm dump pick
 
 local pendingUpdates = {}
 
-function M.HasPending()
-    return next(pendingUpdates) ~= nil
-end
-
-function M.PendingCount()
-    local n = 0
-    for _ in pairs(pendingUpdates) do n = n + 1 end
-    return n
-end
-
 -- ---------------------------------------------------------------------------
 -- Macro write (the only place touching protected APIs)
 -- ---------------------------------------------------------------------------
@@ -513,16 +503,6 @@ function M.FlushPending()
     end
     pendingUpdates = still
     return applied
-end
-
--- ---------------------------------------------------------------------------
--- IsAdopted — has the macro been written by us yet?
--- ---------------------------------------------------------------------------
--- Used by Options UI and slash commands to show whether a slot is live.
-
-function M.IsAdopted(macroName)
-    if not GetMacroIndexByName then return false end
-    return GetMacroIndexByName(macroName) ~= 0
 end
 
 -- ---------------------------------------------------------------------------
